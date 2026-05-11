@@ -1,0 +1,934 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>솔렌스테이 플랫폼 수수료 계산기</title>
+<style>
+  :root {
+    --bg:        #0A0E14;
+    --bg-elev1:  #11161F;
+    --bg-elev2:  #161D2A;
+    --bg-elev3:  #1E2738;
+    --border:    rgba(255,255,255,0.08);
+    --border-strong: rgba(255,255,255,0.14);
+    --text:      #E8EDF4;
+    --text2:     #94A3B8;
+    --text3:     #6B7280;
+    --accent:    #5B9DFF;
+    --accent2:   #38BDF8;
+    --green:     #34D399;
+    --red:       #F87171;
+    --yellow:    #FBBF24;
+    --gold:      #F4C770;
+    --airbnb:    #FF385C;
+    --booking:   #4F8CFF;
+    --agoda:     #FF8A1F;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; min-height: 100%;
+    color: var(--text);
+    font-family: 'Pretendard', '맑은 고딕', 'Segoe UI', system-ui, sans-serif;
+    font-size: 15px; line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    background:
+      radial-gradient(ellipse 70% 50% at 20% 0%, rgba(91,157,255,0.10), transparent 60%),
+      radial-gradient(ellipse 60% 45% at 90% 5%, rgba(244,199,112,0.06), transparent 60%),
+      var(--bg);
+    background-attachment: fixed;
+  }
+  .wrap { max-width: 1240px; margin: 0 auto; padding: 28px 22px 60px; }
+
+  /* ─── 헤더 ─── */
+  header.app-head {
+    display: flex; align-items: center; gap: 18px;
+    padding: 14px 20px;
+    margin-bottom: 22px;
+    background: linear-gradient(135deg,
+      rgba(91,157,255,0.10) 0%,
+      rgba(56,189,248,0.04) 50%,
+      rgba(244,199,112,0.06) 100%);
+    border: 1px solid var(--border);
+    border-radius: 18px;
+    backdrop-filter: blur(8px);
+  }
+  .logo {
+    width: 48px; height: 48px;
+    border-radius: 12px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-size: 24px; font-weight: 800; color: white;
+    letter-spacing: -1px;
+    box-shadow: 0 8px 24px rgba(91,157,255,0.25);
+    flex-shrink: 0;
+  }
+  .head-text { flex: 1; min-width: 0; }
+  .head-text h1 {
+    margin: 0; font-size: 20px; font-weight: 700;
+    letter-spacing: -0.4px;
+  }
+  .head-text p {
+    margin: 2px 0 0; color: var(--text2); font-size: 13px;
+  }
+  .head-meta {
+    text-align: right;
+    font-size: 11px; color: var(--text3);
+    line-height: 1.4;
+    flex-shrink: 0;
+  }
+  .head-meta strong { color: var(--text2); font-weight: 600; }
+
+  /* ─── 공통 패널 ─── */
+  .panel {
+    background: var(--bg-elev1);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 20px 22px;
+    margin-bottom: 14px;
+  }
+  .panel-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 14px;
+    gap: 12px; flex-wrap: wrap;
+  }
+  .panel-head h2 {
+    margin: 0; font-size: 12px; font-weight: 700;
+    color: var(--text2); text-transform: uppercase; letter-spacing: 1px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .panel-head h2::before {
+    content: ''; width: 4px; height: 14px; border-radius: 2px;
+    background: var(--accent);
+    display: inline-block;
+  }
+
+  /* ─── 입력 칸 ─── */
+  .input-row {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .field { display: flex; flex-direction: column; gap: 7px; }
+  .field > label {
+    font-size: 13px; color: var(--text2); font-weight: 500;
+  }
+
+  .dual { display: flex; gap: 10px; }
+  .dual-side { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .dual-lbl {
+    font-size: 10px; font-weight: 700; letter-spacing: 0.8px;
+    text-transform: uppercase;
+    display: none;
+  }
+  .dual-side.wd .dual-lbl { color: var(--text2); }
+  .dual-side.we .dual-lbl { color: var(--gold); }
+  body.split-mode .dual-lbl { display: block; }
+  body:not(.split-mode) .dual-side.we { display: none; }
+
+  .money-input { position: relative; }
+  .money-input::before {
+    content: '₩'; position: absolute; left: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--text2); font-weight: 600; font-size: 17px;
+    pointer-events: none;
+  }
+  .money-input input {
+    width: 100%;
+    background: var(--bg-elev2); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 13px 14px 13px 32px;
+    font-size: 21px; font-weight: 700;
+    font-family: 'Consolas', 'Segoe UI Mono', monospace;
+    transition: all .15s;
+    letter-spacing: -0.3px;
+  }
+  .money-input input:focus {
+    outline: none; border-color: var(--accent);
+    background: var(--bg-elev3);
+    box-shadow: 0 0 0 3px rgba(91,157,255,0.18);
+  }
+  .money-input input.driving {
+    border-color: var(--accent);
+  }
+  .dual-side.we .money-input input { border-color: rgba(244,199,112,0.18); }
+  .dual-side.we .money-input input:focus {
+    border-color: var(--gold);
+    box-shadow: 0 0 0 3px rgba(244,199,112,0.18);
+  }
+
+  /* 역산 기준 라디오 */
+  .base-row {
+    margin-top: 14px;
+    display: flex; align-items: center; gap: 12px;
+    flex-wrap: wrap;
+    padding-top: 14px;
+    border-top: 1px dashed var(--border);
+  }
+  .base-row > .lbl {
+    font-size: 12px; color: var(--text2); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .pill-group { display: flex; gap: 4px; padding: 3px;
+    background: var(--bg-elev2); border-radius: 999px;
+    border: 1px solid var(--border);
+  }
+  .pill {
+    cursor: pointer; user-select: none;
+    color: var(--text2);
+    border-radius: 999px;
+    padding: 5px 14px; font-size: 13px; font-weight: 500;
+    transition: all .15s;
+  }
+  .pill input { display: none; }
+  .pill:hover { color: var(--text); }
+  .pill.active {
+    background: var(--accent); color: white;
+    box-shadow: 0 2px 8px rgba(91,157,255,0.3);
+  }
+  .base-hint { color: var(--text3); font-size: 12px; }
+
+  /* 토글 스위치 */
+  .switch {
+    display: inline-flex; align-items: center; gap: 10px;
+    cursor: pointer; user-select: none;
+    font-size: 13px; color: var(--text2); font-weight: 500;
+    text-transform: none; letter-spacing: 0;
+  }
+  .switch:hover { color: var(--text); }
+  .switch input { display: none; }
+  .switch .track {
+    width: 38px; height: 22px; background: var(--bg-elev3);
+    border: 1px solid var(--border);
+    border-radius: 999px; position: relative;
+    transition: all .15s;
+  }
+  .switch .track::after {
+    content: ''; position: absolute; left: 2px; top: 2px;
+    width: 16px; height: 16px; border-radius: 50%;
+    background: var(--text2); transition: all .15s;
+  }
+  .switch input:checked + .track {
+    background: var(--accent); border-color: var(--accent);
+  }
+  .switch input:checked + .track::after {
+    left: 18px; background: white;
+  }
+  .switch input:checked ~ .switch-text { color: var(--text); }
+
+  /* 옵션 체크박스 */
+  .opt-grid {
+    display: grid; grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .opt {
+    display: flex; align-items: center; gap: 12px;
+    cursor: pointer; user-select: none;
+    color: var(--text2); font-size: 14px;
+    padding: 12px 14px;
+    background: var(--bg-elev2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    transition: all .15s;
+  }
+  .opt:hover { color: var(--text); border-color: var(--border-strong); }
+  .opt input {
+    width: 18px; height: 18px; cursor: pointer; accent-color: var(--accent);
+    flex-shrink: 0;
+  }
+  .opt:has(input:checked) {
+    color: var(--text);
+    background: rgba(91,157,255,0.08);
+    border-color: rgba(91,157,255,0.4);
+  }
+  .opt strong { color: var(--text); font-weight: 600; }
+  .opt .sub { color: var(--text3); font-size: 12px; display: block; margin-top: 2px; }
+
+  /* 수수료율 조정 */
+  details.rates {
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--bg-elev2);
+  }
+  details.rates > summary {
+    cursor: pointer; user-select: none;
+    padding: 12px 16px;
+    font-size: 13px; font-weight: 500; color: var(--text2);
+    list-style: none;
+    display: flex; align-items: center;
+  }
+  details.rates > summary::-webkit-details-marker { display: none; }
+  details.rates > summary::before {
+    content: '▸'; display: inline-block;
+    margin-right: 8px; transition: transform .15s;
+    color: var(--text3); font-size: 11px;
+  }
+  details.rates[open] > summary::before { transform: rotate(90deg); }
+  details.rates[open] > summary { color: var(--text); }
+  .rate-grid {
+    padding: 0 16px 14px;
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  }
+  .rate-field { display: flex; flex-direction: column; gap: 4px; }
+  .rate-field label {
+    font-size: 11px; color: var(--text2); font-weight: 600;
+    text-transform: uppercase; letter-spacing: 0.5px;
+  }
+  .rate-input { position: relative; }
+  .rate-input::after {
+    content: '%'; position: absolute; right: 12px; top: 50%; transform: translateY(-50%);
+    color: var(--text2); font-weight: 600; pointer-events: none;
+  }
+  .rate-input input {
+    width: 100%;
+    background: var(--bg-elev3); color: var(--text);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 8px 28px 8px 12px;
+    font-size: 14px; font-weight: 600;
+    font-family: 'Consolas', monospace;
+  }
+  .rate-input input:focus {
+    outline: none; border-color: var(--accent);
+    box-shadow: 0 0 0 2px rgba(91,157,255,0.18);
+  }
+  .rates-actions { padding: 0 16px 14px; }
+  .btn-reset {
+    background: transparent; color: var(--text2);
+    border: 1px solid var(--border); border-radius: 8px;
+    padding: 6px 12px; font-size: 12px; font-weight: 500;
+    cursor: pointer; transition: all .15s;
+  }
+  .btn-reset:hover {
+    background: var(--bg-elev3); color: var(--text);
+    border-color: var(--border-strong);
+  }
+
+  /* ─── 카드 ─── */
+  .cards-head {
+    display: flex; align-items: center; justify-content: space-between;
+    margin: 22px 4px 12px;
+    gap: 12px; flex-wrap: wrap;
+  }
+  .cards-head h2 {
+    margin: 0; font-size: 14px; font-weight: 700;
+    color: var(--text); letter-spacing: -0.2px;
+  }
+  .cards-head .legend {
+    font-size: 12px; color: var(--text3);
+  }
+  .cards-head .legend .dot {
+    display: inline-block; width: 8px; height: 8px;
+    border-radius: 50%; vertical-align: middle;
+    margin-right: 5px;
+  }
+  .cards-head .legend .dot.wd { background: var(--text2); }
+  .cards-head .legend .dot.we { background: var(--gold); }
+  body:not(.split-mode) .cards-head .legend { display: none; }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+  }
+  .card {
+    position: relative;
+    background: var(--bg-elev1);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 0;
+    overflow: hidden;
+    display: flex; flex-direction: column;
+    transition: transform .18s, box-shadow .18s, border-color .18s;
+  }
+  .card:hover {
+    transform: translateY(-2px);
+    border-color: var(--border-strong);
+    box-shadow: 0 12px 32px rgba(0,0,0,0.25);
+  }
+  /* 플랫폼 컬러 상단 바 */
+  .card::before {
+    content: ''; position: absolute; left: 0; right: 0; top: 0; height: 3px;
+    background: var(--platform-color, var(--accent));
+    z-index: 1;
+  }
+  .card[data-platform="airbnb"]  { --platform-color: var(--airbnb); }
+  .card[data-platform="booking"] { --platform-color: var(--booking); }
+  .card[data-platform="agoda"]   { --platform-color: var(--agoda); }
+
+  /* BEST 뱃지 */
+  .best-badge {
+    position: absolute; top: 12px; right: 12px;
+    background: linear-gradient(135deg, var(--gold), #E0A858);
+    color: #1A1308;
+    font-size: 10px; font-weight: 800;
+    text-transform: uppercase; letter-spacing: 0.8px;
+    padding: 4px 9px; border-radius: 999px;
+    box-shadow: 0 4px 12px rgba(244,199,112,0.3);
+    z-index: 2;
+    display: none;
+  }
+  .card.best .best-badge { display: block; }
+  .card.best { border-color: rgba(244,199,112,0.4); }
+
+  .card-head {
+    padding: 18px 18px 14px;
+    display: flex; justify-content: space-between; align-items: center;
+    gap: 8px;
+  }
+  .card-head .name {
+    font-size: 17px; font-weight: 700; letter-spacing: -0.3px;
+    color: var(--platform-color);
+  }
+  .card-head .rate-badge {
+    background: var(--bg-elev2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px 8px;
+    font-size: 11px; font-weight: 700;
+    font-family: 'Consolas', monospace;
+    color: var(--text2);
+  }
+
+  .card-body { padding: 4px 18px 16px; flex: 1; }
+
+  .day-header {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: center;
+    padding: 6px 0 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 6px;
+    gap: 10px;
+  }
+  body:not(.split-mode) .day-header { display: none; }
+  .day-header .day-lbl {
+    font-size: 10px; font-weight: 700;
+    text-transform: uppercase; letter-spacing: 0.7px;
+    text-align: right;
+    min-width: 86px;
+  }
+  .day-header .day-lbl.wd { color: var(--text2); }
+  .day-header .day-lbl.we { color: var(--gold); }
+
+  .row {
+    display: grid;
+    grid-template-columns: 1fr auto auto;
+    align-items: baseline;
+    gap: 10px;
+    padding: 6px 0;
+    font-size: 13.5px;
+  }
+  body:not(.split-mode) .row { grid-template-columns: 1fr auto; }
+  body:not(.split-mode) .row .val.we { display: none; }
+
+  .row .lbl { color: var(--text2); }
+  .row .val {
+    font-family: 'Consolas', monospace;
+    font-weight: 600; color: var(--text);
+    text-align: right;
+    min-width: 86px;
+    font-size: 13.5px;
+  }
+  .row .val.we { color: var(--gold); }
+  .row.fee .val { color: var(--red); opacity: 0.95; }
+  .fee-note {
+    display: inline-block;
+    font-size: 9.5px; font-weight: 700; font-style: normal;
+    letter-spacing: 0.4px;
+    color: var(--text3);
+    background: var(--bg-elev3);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    padding: 1px 5px;
+    margin-left: 6px;
+    vertical-align: middle;
+  }
+  body.split-mode .row.fee .val.we { color: #FCA5A5; }
+  .row.divider {
+    border-top: 1px dashed var(--border);
+    padding-top: 10px; margin-top: 4px;
+  }
+  .row.tax { font-size: 12.5px; padding: 4px 0; }
+  .row.tax .lbl { color: var(--text3); }
+  .row.tax .val { color: var(--yellow); font-weight: 500; opacity: 0.85; }
+  body.split-mode .row.tax .val.we { color: #FDE68A; }
+  .row.final {
+    border-top: 2px solid var(--border);
+    margin-top: 10px; padding-top: 14px;
+  }
+  .row.final .lbl { color: var(--text); font-weight: 700; font-size: 14px; }
+  .row.final .val {
+    color: var(--green); font-size: 18px; font-weight: 800;
+    letter-spacing: -0.3px;
+  }
+  body.split-mode .row.final .val.we { color: #6EE7B7; }
+  .card.best .row.final .val { color: var(--gold); }
+  .card.best .row.final .val.we { color: #FFD9A0; }
+
+  .card-foot {
+    padding: 10px 18px;
+    background: var(--bg-elev2);
+    border-top: 1px solid var(--border);
+    font-size: 11.5px; color: var(--text2);
+    display: flex; justify-content: space-between; align-items: center;
+  }
+  .card-foot strong { color: var(--text); font-weight: 600; }
+
+  /* ─── 안내 ─── */
+  .notes {
+    margin-top: 20px;
+    background: transparent;
+    border: 1px dashed var(--border);
+    border-radius: 12px;
+    padding: 16px 22px;
+    font-size: 12.5px;
+    color: var(--text2);
+    line-height: 1.7;
+  }
+  .notes h3 {
+    margin: 0 0 6px; font-size: 11px; font-weight: 700;
+    color: var(--text3); text-transform: uppercase; letter-spacing: 1px;
+  }
+  .notes ul { margin: 0; padding-left: 18px; }
+  .notes li { margin: 2px 0; }
+  .notes code {
+    background: var(--bg-elev2); padding: 1px 6px; border-radius: 4px;
+    font-size: 11.5px; color: var(--text);
+    border: 1px solid var(--border);
+  }
+
+  footer.app-foot {
+    text-align: center;
+    margin-top: 28px;
+    color: var(--text3);
+    font-size: 11.5px;
+  }
+
+  @media (max-width: 720px) {
+    .wrap { padding: 16px 12px 32px; }
+    header.app-head { padding: 12px 14px; gap: 12px; }
+    .logo { width: 40px; height: 40px; font-size: 20px; }
+    .head-text h1 { font-size: 17px; }
+    .head-text p { font-size: 12px; }
+    .head-meta { display: none; }
+    .panel { padding: 16px 16px; }
+    .input-row { grid-template-columns: 1fr; gap: 12px; }
+    .opt-grid { grid-template-columns: 1fr; }
+    .money-input input { font-size: 18px; padding: 12px 12px 12px 30px; }
+    .rate-grid { grid-template-columns: 1fr; }
+    .cards { grid-template-columns: 1fr; gap: 12px; }
+    .row .val, .day-header .day-lbl { min-width: 72px; font-size: 13px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="app-head">
+    <div class="logo">S</div>
+    <div class="head-text">
+      <h1>솔렌스테이 플랫폼 수수료 계산기</h1>
+      <p>에어비앤비 · 부킹닷컴 · 아고다 — 호스트 수령액 ↔ 게스트 표시가 양방향 비교</p>
+    </div>
+    <div class="head-meta">
+      <strong>2026.05 기준</strong><br>
+      한국 통상 요율
+    </div>
+  </header>
+
+  <!-- ─── 가격 입력 ─── -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2>가격 입력</h2>
+      <label class="switch" title="평일/주말 요금을 분리해서 입력합니다">
+        <input type="checkbox" id="split-toggle">
+        <span class="track"></span>
+        <span class="switch-text">평일 / 주말 분리</span>
+      </label>
+    </div>
+
+    <div class="input-row">
+      <div class="field">
+        <label>게스트 표시가 (1박, 결제가)</label>
+        <div class="dual">
+          <div class="dual-side wd">
+            <span class="dual-lbl">평일</span>
+            <div class="money-input">
+              <input id="display-wd" type="text" inputmode="numeric"
+                     aria-label="평일 게스트 표시가" autocomplete="off">
+            </div>
+          </div>
+          <div class="dual-side we">
+            <span class="dual-lbl">주말</span>
+            <div class="money-input">
+              <input id="display-we" type="text" inputmode="numeric"
+                     aria-label="주말 게스트 표시가" autocomplete="off">
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="field">
+        <label>호스트 정산금 (세전, 수수료 차감 후)</label>
+        <div class="dual">
+          <div class="dual-side wd">
+            <span class="dual-lbl">평일</span>
+            <div class="money-input">
+              <input id="net-wd" type="text" inputmode="numeric"
+                     aria-label="평일 호스트 정산금" autocomplete="off">
+            </div>
+          </div>
+          <div class="dual-side we">
+            <span class="dual-lbl">주말</span>
+            <div class="money-input">
+              <input id="net-we" type="text" inputmode="numeric"
+                     aria-label="주말 호스트 정산금" autocomplete="off">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="base-row">
+      <span class="lbl">역산 기준</span>
+      <div class="pill-group" id="base-pills" role="radiogroup" aria-label="기준 플랫폼">
+        <label class="pill active" data-base="airbnb"><input type="radio" name="base" value="airbnb" checked>에어비앤비</label>
+        <label class="pill" data-base="booking"><input type="radio" name="base" value="booking">부킹닷컴</label>
+        <label class="pill" data-base="agoda"><input type="radio" name="base" value="agoda">아고다</label>
+      </div>
+      <span class="base-hint">정산금 입력 시 이 플랫폼 수수료율로 표시가를 역산합니다</span>
+    </div>
+  </section>
+
+  <!-- ─── 옵션 (세금 + 수수료율 조정) ─── -->
+  <section class="panel">
+    <div class="panel-head">
+      <h2>세금 옵션 <span style="font-weight:500;color:var(--text3);text-transform:none;letter-spacing:0;font-size:11px;">3개 플랫폼 모두 동일 적용</span></h2>
+    </div>
+    <div class="opt-grid">
+      <label class="opt">
+        <input type="checkbox" id="vat">
+        <span>
+          <strong>매출 VAT 10% 적립</strong>
+          <span class="sub">일반과세자 — 호스트 매출의 부가세 (10/110). 수수료 매입 VAT는 매출 VAT와 상계되므로 별도 표시 X</span>
+        </span>
+      </label>
+      <label class="opt">
+        <input type="checkbox" id="wht">
+        <span>
+          <strong>사업소득세 3.3% 적립</strong>
+          <span class="sub">종합소득세 신고 대비 (단순경비율/기준경비율과 무관한 단순 적립용)</span>
+        </span>
+      </label>
+    </div>
+
+    <details class="rates" id="rates-details" style="margin-top:14px;">
+      <summary>수수료율 조정 (기본값: 한국 통상 요율)</summary>
+      <div class="rate-grid">
+        <div class="rate-field">
+          <label style="color:var(--airbnb)">에어비앤비</label>
+          <div class="rate-input"><input type="number" id="r-airbnb" step="0.1" min="0" max="50"></div>
+        </div>
+        <div class="rate-field">
+          <label style="color:var(--booking)">부킹닷컴</label>
+          <div class="rate-input"><input type="number" id="r-booking" step="0.1" min="0" max="50"></div>
+        </div>
+        <div class="rate-field">
+          <label style="color:var(--agoda)">아고다</label>
+          <div class="rate-input"><input type="number" id="r-agoda" step="0.1" min="0" max="50"></div>
+        </div>
+      </div>
+      <div class="rates-actions">
+        <button class="btn-reset" id="btn-reset">기본값으로 복원 (15.5 / 15.0 / 16.0)</button>
+      </div>
+    </details>
+  </section>
+
+  <!-- ─── 카드 ─── -->
+  <div class="cards-head">
+    <h2>플랫폼별 정산 비교</h2>
+    <div class="legend">
+      <span class="dot wd"></span>평일 &nbsp;&nbsp;
+      <span class="dot we"></span>주말
+    </div>
+  </div>
+  <div class="cards" id="cards"></div>
+
+  <section class="notes">
+    <h3>참고</h3>
+    <ul>
+      <li><strong>에어비앤비</strong>: 한국은 <code>2026-05-25</code>부터 단일 수수료 체계로 전환 — 호스트 부담 약 15.5%, 표시가=결제가.</li>
+      <li><strong>부킹닷컴</strong>: 매월 초 이전 달 청구서 발행(후불 월정산) — 다른 플랫폼 대비 현금흐름 1개월 후행.</li>
+      <li><strong>아고다</strong>: 위치·연결방식·AGX 프로그램에 따라 실 요율 변동(15~17%). 호스트 설정가 = 수령액 기준.</li>
+      <li>28박+ 장기숙박, 호스트와 다른 통화 결제(에어비앤비 최대 16.5%) 등은 본 계산기 범위 밖.</li>
+      <li><strong>수수료 부가세</strong>: 솔렌스테이가 사업자번호를 플랫폼에 등록한 경우, 수수료는 <code>VAT 별도</code>로 청구되고 호스트가 <code>대리납부</code> 의무. 매출 VAT 신고 시 매입세액 공제로 상계되므로 본 계산기는 매출 VAT만 표시.</li>
+      <li><strong>수수료 원천세</strong>: 외국법인(에어비앤비=아일랜드, 부킹=네덜란드, 아고다=싱가포르) 지급 수수료는 조세조약 면제로 실무상 원천징수하지 않음 — 본 계산기 미반영.</li>
+    </ul>
+  </section>
+
+  <footer class="app-foot">
+    수수료/세율은 2026.05 시점 정보 — 실제 정산 전 각 플랫폼 공지 확인 필요
+  </footer>
+
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  const PLATFORMS = [
+    { id: 'airbnb',  name: '에어비앤비', defaultRate: 15.5, settle: '선차감 (즉시)'   },
+    { id: 'booking', name: '부킹닷컴',   defaultRate: 15.0, settle: '후불 (월정산)'   },
+    { id: 'agoda',   name: '아고다',     defaultRate: 16.0, settle: '선차감/후불 선택' },
+  ];
+  const STORAGE_KEY = 'solenstay_fee_calc_v3';
+  const DAYS = ['wd', 'we'];
+
+  const state = {
+    rates: Object.fromEntries(PLATFORMS.map(p => [p.id, p.defaultRate])),
+    base: 'airbnb',
+    split: false,
+    display: { wd: 200000, we: 250000 },
+    vat: false,
+    wht: false,
+  };
+
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if (saved) {
+      if (saved.rates) {
+        for (const p of PLATFORMS) {
+          if (typeof saved.rates[p.id] === 'number' && saved.rates[p.id] >= 0) {
+            state.rates[p.id] = saved.rates[p.id];
+          }
+        }
+      }
+      if (typeof saved.split === 'boolean') state.split = saved.split;
+    }
+  } catch (e) {}
+
+  function persist() {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify({
+      rates: state.rates,
+      split: state.split,
+    }));
+  }
+
+  const fmt = new Intl.NumberFormat('ko-KR');
+  const fmtKRW = n => '₩' + fmt.format(Math.round(n));
+  const parseNum = s => {
+    if (s == null) return 0;
+    const n = Number(String(s).replace(/[^\d.-]/g, ''));
+    return isFinite(n) && n > 0 ? n : 0;
+  };
+
+  // ─── 카드 빌드 ───
+  function buildCards() {
+    const cards = document.getElementById('cards');
+    cards.innerHTML = PLATFORMS.map(p => `
+      <div class="card" data-platform="${p.id}">
+        <span class="best-badge" title="3개 플랫폼 중 실수령액 최고">💎 최고 수령</span>
+        <div class="card-head">
+          <span class="name">${p.name}</span>
+          <span class="rate-badge" data-rate-badge="${p.id}"></span>
+        </div>
+        <div class="card-body">
+          <div class="day-header">
+            <span></span>
+            <span class="day-lbl wd">평일</span>
+            <span class="day-lbl we">주말</span>
+          </div>
+          <div class="row"><span class="lbl">표시가</span>
+            <span class="val wd" data-out="${p.id}-display-wd"></span>
+            <span class="val we" data-out="${p.id}-display-we"></span>
+          </div>
+          <div class="row fee"><span class="lbl">호스트 수수료<em class="fee-note">VAT 별도</em></span>
+            <span class="val wd" data-out="${p.id}-fee-wd"></span>
+            <span class="val we" data-out="${p.id}-fee-we"></span>
+          </div>
+          <div class="row divider"><span class="lbl">정산금 (세전)</span>
+            <span class="val wd" data-out="${p.id}-net-wd"></span>
+            <span class="val we" data-out="${p.id}-net-we"></span>
+          </div>
+          <div class="row tax" data-tax-row="${p.id}-vat" hidden>
+            <span class="lbl">└ 매출 VAT 적립 (10/110)</span>
+            <span class="val wd" data-out="${p.id}-vat-wd"></span>
+            <span class="val we" data-out="${p.id}-vat-we"></span>
+          </div>
+          <div class="row tax" data-tax-row="${p.id}-wht" hidden>
+            <span class="lbl">└ 사업소득세 적립 (3.3%)</span>
+            <span class="val wd" data-out="${p.id}-wht-wd"></span>
+            <span class="val we" data-out="${p.id}-wht-we"></span>
+          </div>
+          <div class="row final"><span class="lbl">실수령액</span>
+            <span class="val wd" data-out="${p.id}-final-wd"></span>
+            <span class="val we" data-out="${p.id}-final-we"></span>
+          </div>
+        </div>
+        <div class="card-foot">
+          <span>정산</span><strong data-out="${p.id}-settle"></strong>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  // ─── 메인 계산 ───
+  function compute() {
+    const finalTotals = {};  // 플랫폼별 실수령 합계 (BEST 비교용)
+
+    for (const p of PLATFORMS) {
+      const r = state.rates[p.id] / 100;
+      document.querySelector(`[data-rate-badge="${p.id}"]`).textContent =
+        state.rates[p.id].toFixed(1) + '%';
+      document.querySelector(`[data-out="${p.id}-settle"]`).textContent = p.settle;
+
+      let total = 0;
+      for (const k of DAYS) {
+        const P = state.display[k];
+        const fee = P * r;
+        const net = P - fee;
+        const vat = state.vat ? net * (10 / 110) : 0;
+        const wht = state.wht ? net * 0.033 : 0;
+        const final = net - vat - wht;
+
+        document.querySelector(`[data-out="${p.id}-display-${k}"]`).textContent = fmtKRW(P);
+        document.querySelector(`[data-out="${p.id}-fee-${k}"]`).textContent = '−' + fmtKRW(fee);
+        document.querySelector(`[data-out="${p.id}-net-${k}"]`).textContent = fmtKRW(net);
+        if (state.vat) {
+          document.querySelector(`[data-out="${p.id}-vat-${k}"]`).textContent = '−' + fmtKRW(vat);
+        }
+        if (state.wht) {
+          document.querySelector(`[data-out="${p.id}-wht-${k}"]`).textContent = '−' + fmtKRW(wht);
+        }
+        document.querySelector(`[data-out="${p.id}-final-${k}"]`).textContent = fmtKRW(final);
+
+        // BEST 비교: 분리 OFF면 평일만, ON이면 평일+주말 합산
+        if (state.split || k === 'wd') total += final;
+      }
+      finalTotals[p.id] = total;
+
+      document.querySelector(`[data-tax-row="${p.id}-vat"]`).hidden = !state.vat;
+      document.querySelector(`[data-tax-row="${p.id}-wht"]`).hidden = !state.wht;
+    }
+
+    // BEST 카드 표시 (실수령 합계 최고). 모든 카드가 동일하면 표시 안 함.
+    const values = Object.values(finalTotals);
+    const max = Math.max(...values);
+    const min = Math.min(...values);
+    const showBest = (max - min) > 1;  // 1원 이상 차이가 있을 때만
+    for (const p of PLATFORMS) {
+      const card = document.querySelector(`.card[data-platform="${p.id}"]`);
+      card.classList.toggle('best', showBest && finalTotals[p.id] === max);
+    }
+  }
+
+  // ─── 입력 동기화 ───
+  const els = {
+    display: { wd: document.getElementById('display-wd'), we: document.getElementById('display-we') },
+    net:     { wd: document.getElementById('net-wd'),     we: document.getElementById('net-we')     },
+  };
+
+  function refreshInputs(skip) {
+    const r = state.rates[state.base] / 100;
+    for (const k of DAYS) {
+      const P = state.display[k];
+      if (!skip || skip.field !== 'display' || skip.day !== k) {
+        els.display[k].value = fmt.format(Math.round(P));
+      }
+      if (!skip || skip.field !== 'net' || skip.day !== k) {
+        els.net[k].value = fmt.format(Math.round(P * (1 - r)));
+      }
+    }
+  }
+  function clearDriving() {
+    for (const k of DAYS) {
+      els.display[k].classList.remove('driving');
+      els.net[k].classList.remove('driving');
+    }
+  }
+  for (const k of DAYS) {
+    els.display[k].addEventListener('input', () => {
+      state.display[k] = parseNum(els.display[k].value);
+      clearDriving();
+      els.display[k].classList.add('driving');
+      refreshInputs({ field: 'display', day: k });
+      compute();
+    });
+    els.net[k].addEventListener('input', () => {
+      const net = parseNum(els.net[k].value);
+      const r = state.rates[state.base] / 100;
+      state.display[k] = r >= 1 ? 0 : net / (1 - r);
+      clearDriving();
+      els.net[k].classList.add('driving');
+      refreshInputs({ field: 'net', day: k });
+      compute();
+    });
+    els.display[k].addEventListener('blur', () => refreshInputs());
+    els.net[k].addEventListener('blur', () => refreshInputs());
+  }
+
+  // ─── 평일/주말 토글 ───
+  const splitToggle = document.getElementById('split-toggle');
+  function applySplit() {
+    document.body.classList.toggle('split-mode', state.split);
+    splitToggle.checked = state.split;
+    if (!state.split) state.display.we = state.display.wd;
+    refreshInputs();
+    compute();
+    persist();
+  }
+  splitToggle.addEventListener('change', () => {
+    state.split = splitToggle.checked;
+    applySplit();
+  });
+
+  // ─── 기준 플랫폼 ───
+  document.querySelectorAll('#base-pills .pill').forEach(pill => {
+    pill.addEventListener('click', () => {
+      state.base = pill.dataset.base;
+      document.querySelectorAll('#base-pills .pill').forEach(p =>
+        p.classList.toggle('active', p === pill));
+      pill.querySelector('input').checked = true;
+      refreshInputs();
+      compute();
+    });
+  });
+
+  // ─── 세금 옵션 ───
+  document.getElementById('vat').addEventListener('change', e => {
+    state.vat = e.target.checked; compute();
+  });
+  document.getElementById('wht').addEventListener('change', e => {
+    state.wht = e.target.checked; compute();
+  });
+
+  // ─── 수수료율 조정 ───
+  function bindRateInput(p) {
+    const el = document.getElementById('r-' + p.id);
+    el.value = state.rates[p.id].toFixed(1);
+    el.addEventListener('input', () => {
+      const v = Number(el.value);
+      if (isFinite(v) && v >= 0 && v < 100) {
+        state.rates[p.id] = v;
+        persist();
+        refreshInputs();
+        compute();
+      }
+    });
+  }
+  PLATFORMS.forEach(bindRateInput);
+
+  document.getElementById('btn-reset').addEventListener('click', () => {
+    for (const p of PLATFORMS) {
+      state.rates[p.id] = p.defaultRate;
+      document.getElementById('r-' + p.id).value = p.defaultRate.toFixed(1);
+    }
+    persist();
+    refreshInputs();
+    compute();
+  });
+
+  // ─── 초기 렌더 ───
+  buildCards();
+  applySplit();
+})();
+</script>
+</body>
+</html>

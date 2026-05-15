@@ -17,9 +17,18 @@
 ### 직위/권한
 | 직위 | 주요 권한 |
 |---|---|
-| 매니저 (사장) | 모든 권한 (관리자 페이지 ⑦ 포함) |
+| 매니저 (사장) — **김성호** | 모든 권한 (관리자 페이지 ⑦ 포함) |
 | 청소실장 | 매니저 대시보드 일부(특이사항·미지정 청소) + 청소원 강제 할당. PIN 발급·체크리스트 편집 불가 |
 | 청소원 | 자기 청소 작업만, 참석 의사 표시, 완료 보고 |
+
+### 운영 정책
+| 항목 | 값 |
+|---|---|
+| iCal 동기화 주기 | **1분** (Cloud Functions Scheduled, Google Calendar 캐시 한계상 그 이상 빠르게는 무의미) |
+| 미참석 알림 시점 | 체크아웃 4시간 전 |
+| 미참석 알림 검사 주기 | 1시간 |
+| 사진 보존 기간 | **최대 30일** (이후 자동 삭제) |
+| 타임존 | Asia/Seoul |
 
 ### 청소 흐름
 ```
@@ -166,7 +175,7 @@ type ChecklistItem = {
 ### 4-2. iCal 동기화
 | 함수 | 트리거 | 역할 |
 |---|---|---|
-| `syncICalScheduled` | Scheduled (15분 주기) | 모든 활성 호점의 iCal fetch → reservations 갱신 |
+| `syncICalScheduled` | Scheduled (**1분 주기**) | 모든 활성 호점의 iCal fetch → reservations 갱신 |
 | `syncICalManual` | onCall (manager/chief) | 매니저가 즉시 동기화 트리거 |
 
 ### 4-3. 청소 일정
@@ -185,6 +194,11 @@ type ChecklistItem = {
 | `notifyNewReservation` | Firestore onCreate (reservations) | 새 예약 → 청소원들에게 푸시 (옵션) |
 | `registerFcmToken` | onCall | 기기 FCM 토큰 등록 |
 | `unregisterFcmToken` | onCall | 토큰 해제 (로그아웃 시) |
+
+### 4-5. 유지보수
+| 함수 | 트리거 | 역할 |
+|---|---|---|
+| `cleanupOldPhotos` | Scheduled (매일 03:00 KST) | 30일 이상 된 청소 사진 Storage에서 삭제 + cleanings.photoUrls 정리 |
 
 ---
 
@@ -261,22 +275,26 @@ type ChecklistItem = {
 
 ### users (시드 스크립트로 매니저 1명 생성)
 ```js
-{ name: "<매니저 이름>", role: "manager", pin: "000000" }
+{ name: "김성호", role: "manager", pin: "000000" }
 // → registerUser Function이 hashPin + pinChanged: false로 저장
+// 김성호가 첫 로그인 후 PIN 변경 + 청소실장/청소원 직접 등록
 ```
 
 ---
 
-## 8. 미해결/추후 결정 항목
+## 8. 결정 항목 (확정/추후)
 
-- [ ] **OTA iCal URL** — 각 호점 Google Calendar 통합 iCal 주소
-- [ ] **매니저 본인 이름** — 시드용
-- [ ] **나머지 사용자 명단** — 청소실장 1명 + 청소원들
-- [ ] **사진 보존 기간** — Storage 비용 관리용 (예: 90일 후 자동 삭제?)
-- [ ] **타임존** — Asia/Seoul 기본
-- [ ] **알림 시점 N시간** — 현재 4시간 기본값, 조정 가능
-- [ ] **iCal 동기화 주기** — 현재 15분 기본값
-- [ ] **PWA 설치 안내** — 청소원에게 첫 로그인 시 홈화면 추가 가이드
+### ✅ 확정
+- **매니저 이름**: 김성호
+- **사진 보존 기간**: 30일 (이후 `cleanupOldPhotos` Function이 자동 삭제)
+- **iCal 동기화 주기**: 1분
+- **타임존**: Asia/Seoul
+- **알림 시점**: 체크아웃 4시간 전
+
+### ⏳ 추후 결정 (배포 직전)
+- [ ] **OTA iCal URL** — 각 호점 Google Calendar 통합 iCal 주소 (매니저가 사전 셋업 후 입력)
+- [ ] **청소실장 1명 + 청소원 명단** — 매니저가 첫 로그인 후 등록
+- [ ] **PWA 설치 안내 문구** — 청소원에게 첫 로그인 시 홈화면 추가 가이드
 
 ---
 

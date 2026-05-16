@@ -4,8 +4,8 @@
  *
  * Phase 3 진행 상황:
  *   ✅ 인증: signInWithPin, changePin, registerUser, updateUserPin, deactivateUser
- *   ⏳ iCal 동기화: syncICalScheduled, syncICalManual (다음 단계)
- *   ⏳ 청소: claimCleaning, releaseCleaning, completeCleaning, forceAssignCleaning, onReservationCreated
+ *   ✅ iCal 동기화: syncICalScheduled, syncICalManual
+ *   ✅ 청소: claimCleaning, releaseCleaning, completeCleaning, forceAssignCleaning, onReservationCreated
  *   ⏳ 알림: notifyUnassignedReminder, notifyNewReservation, registerFcmToken, unregisterFcmToken
  *   ⏳ 유지보수: cleanupOldPhotos
  */
@@ -22,3 +22,15 @@ export {
   updateUserPin,
   deactivateUser,
 } from './auth_pin';
+
+// ===== iCal 동기화 =====
+export { syncICalScheduled, syncICalManual } from './ical_sync';
+
+// ===== 청소 =====
+export {
+  onReservationCreated,
+  claimCleaning,
+  releaseCleaning,
+  forceAssignCleaning,
+  completeCleaning,
+} from './cleanings';

@@ -1,7 +1,9 @@
-# SolenStay 백엔드 설계 (v0.1)
+# SolenStay 백엔드 설계 (v0.2)
 
 > Flutter Web + Firebase (Auth · Firestore · Storage · Functions · FCM · Hosting)
 > 작성일: 2026-05-16
+> **Firebase 프로젝트 ID**: `solenstay-f4817`
+> **리전**: `asia-northeast3` (Functions/Firestore/Storage 모두)
 
 ---
 

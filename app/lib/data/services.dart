@@ -92,6 +92,12 @@ class FunctionsService {
   final FirebaseFunctions _fn;
   FunctionsService(this._fn);
 
+  Future<List<String>> listLoginCandidates() async {
+    final res = await _fn.httpsCallable('listLoginCandidates').call();
+    final data = Map<String, dynamic>.from(res.data as Map);
+    return (data['names'] as List<dynamic>).cast<String>();
+  }
+
   Future<Map<String, dynamic>> signInWithPin({
     required String name,
     required String pin,

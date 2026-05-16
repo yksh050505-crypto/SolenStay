@@ -18,6 +18,7 @@ admin.initializeApp();
 
 // ===== 인증 =====
 export {
+  listLoginCandidates,
   signInWithPin,
   changePin,
   registerUser,

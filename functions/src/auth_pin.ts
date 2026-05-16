@@ -25,6 +25,19 @@ interface UserDoc {
 }
 
 /**
+ * 로그인 화면용: 활성 사용자 이름 목록만 반환 (PIN 정보 없이)
+ * 인증 없이 호출 가능 (이름 카드 표시용)
+ */
+export const listLoginCandidates = onCall({ region: REGION }, async () => {
+  const db = admin.firestore();
+  const snap = await db.collection('users').where('active', '==', true).get();
+  const names = Array.from(new Set(snap.docs.map((d) => d.data().name as string)))
+    .filter((n): n is string => typeof n === 'string' && n.length > 0)
+    .sort();
+  return { names };
+});
+
+/**
  * 청소원/실장/매니저가 이름+PIN으로 로그인
  * @returns { token: string, role: string, name: string, pinChanged: boolean }
  */

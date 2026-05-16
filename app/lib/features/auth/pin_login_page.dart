@@ -92,14 +92,27 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
               const Text('PIN 로그인', style: TextStyle(color: AppColors.muted, fontSize: 13)),
               const SizedBox(height: 28),
 
-              // 이름 카드 (스트림으로 가져옴)
+              // 이름 카드 (Cloud Function 호출, 인증 없이)
               Consumer(builder: (context, ref, _) {
-                final fs = ref.watch(firestoreProvider);
-                return StreamBuilder(
-                  stream: fs.collection('users').where('active', isEqualTo: true).snapshots(),
+                return FutureBuilder<List<String>>(
+                  future: ref.read(functionsServiceProvider).listLoginCandidates(),
                   builder: (context, snap) {
-                    if (!snap.hasData) return const Center(child: CircularProgressIndicator());
-                    final names = snap.data!.docs.map((d) => d.data()['name'] as String).toSet().toList()..sort();
+                    if (snap.connectionState != ConnectionState.done) {
+                      return const Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator());
+                    }
+                    if (snap.hasError) {
+                      return Padding(
+                        padding: const EdgeInsets.all(16),
+                        child: Text('사용자 목록 로드 실패: ${snap.error}', style: const TextStyle(color: AppColors.danger, fontSize: 12)),
+                      );
+                    }
+                    final names = snap.data ?? const <String>[];
+                    if (names.isEmpty) {
+                      return const Padding(
+                        padding: EdgeInsets.all(16),
+                        child: Text('등록된 사용자가 없습니다.', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+                      );
+                    }
                     return GridView.builder(
                       shrinkWrap: true,
                       physics: const NeverScrollableScrollPhysics(),

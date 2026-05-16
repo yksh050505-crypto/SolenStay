@@ -5,9 +5,11 @@
  * Phase 3 진행 상황:
  *   ✅ 인증: signInWithPin, changePin, registerUser, updateUserPin, deactivateUser
  *   ✅ iCal 동기화: syncICalScheduled, syncICalManual
- *   ✅ 청소: claimCleaning, releaseCleaning, completeCleaning, forceAssignCleaning, onReservationCreated
- *   ⏳ 알림: notifyUnassignedReminder, notifyNewReservation, registerFcmToken, unregisterFcmToken
- *   ⏳ 유지보수: cleanupOldPhotos
+ *   ✅ 청소: onReservationCreated, claimCleaning, releaseCleaning, forceAssignCleaning, completeCleaning
+ *   ✅ 알림: notifyUnassignedReminder, notifyNewReservation, registerFcmToken, unregisterFcmToken
+ *   ✅ 유지보수: cleanupOldPhotos
+ *
+ * 총 14개 함수 모두 구현 완료.
  */
 
 import * as admin from 'firebase-admin';
@@ -34,3 +36,14 @@ export {
   forceAssignCleaning,
   completeCleaning,
 } from './cleanings';
+
+// ===== 알림 =====
+export {
+  notifyUnassignedReminder,
+  notifyNewReservation,
+  registerFcmToken,
+  unregisterFcmToken,
+} from './notifications';
+
+// ===== 유지보수 =====
+export { cleanupOldPhotos } from './maintenance';

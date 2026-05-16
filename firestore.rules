@@ -1,0 +1,47 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAuth() { return request.auth != null; }
+    function role() { return request.auth.token.role; }
+    function isManager() { return isAuth() && role() == 'manager'; }
+    function isChiefOrManager() { return isAuth() && (role() == 'chief' || role() == 'manager'); }
+
+    match /branches/{branchId} {
+      allow read: if isAuth();
+      allow write: if isManager();
+    }
+
+    match /users/{uid} {
+      allow read: if isAuth() && (request.auth.uid == uid || isManager());
+      allow update: if isAuth() && request.auth.uid == uid &&
+                       request.resource.data.diff(resource.data).affectedKeys()
+                       .hasOnly(['pinHash', 'pinSalt', 'pinChanged', 'fcmTokens']);
+      allow create, delete: if isManager();
+    }
+
+    match /reservations/{id} {
+      allow read: if isAuth();
+      allow write: if false;
+    }
+
+    match /cleanings/{id} {
+      allow read: if isAuth();
+      allow update: if isAuth() && (
+        request.auth.uid == request.resource.data.assigneeUid ||
+        request.auth.uid == resource.data.assigneeUid ||
+        isChiefOrManager()
+      );
+      allow create, delete: if false;
+    }
+
+    match /checklistTemplates/{branchId} {
+      allow read: if isAuth();
+      allow write: if isManager();
+    }
+
+    match /notifications/{id} {
+      allow read: if isAuth() && request.auth.uid in resource.data.recipientUids;
+      allow write: if false;
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "solenstay-scripts",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SolenStay 초기 시드 + 운영 스크립트",
+  "scripts": {
+    "seed": "node seed.js"
+  },
+  "dependencies": {
+    "firebase-admin": "^12.7.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

@@ -36,12 +36,17 @@ class AppColors {
   }
 }
 
+/// Pretendard 웹폰트 (CDN에서 index.html로 로드)
+const _fontFamily = 'Pretendard Variable';
+const _fontFallback = <String>['Pretendard', 'Noto Sans KR', 'sans-serif'];
+
 ThemeData buildAppTheme() {
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
     scaffoldBackgroundColor: AppColors.bg,
-    fontFamily: 'Pretendard',
+    fontFamily: _fontFamily,
+    fontFamilyFallback: _fontFallback,
     colorScheme: ColorScheme.fromSeed(
       seedColor: AppColors.branch1,
       brightness: Brightness.light,
@@ -56,41 +61,90 @@ ThemeData buildAppTheme() {
         side: const BorderSide(color: AppColors.line),
       ),
     ),
-    appBarTheme: const AppBarTheme(
+    appBarTheme: AppBarTheme(
       backgroundColor: AppColors.bg,
       foregroundColor: AppColors.text,
       elevation: 0,
+      scrolledUnderElevation: 0,
       centerTitle: true,
+      titleTextStyle: TextStyle(
+        fontFamily: _fontFamily,
+        fontFamilyFallback: _fontFallback,
+        fontWeight: FontWeight.w600,
+        fontSize: 16,
+        color: AppColors.text,
+      ),
     ),
     filledButtonTheme: FilledButtonThemeData(
       style: FilledButton.styleFrom(
         backgroundColor: AppColors.branch1,
         foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        textStyle: TextStyle(
+          fontFamily: _fontFamily,
+          fontFamilyFallback: _fontFallback,
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+        elevation: 0,
       ),
     ),
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: AppColors.text,
         side: const BorderSide(color: AppColors.line),
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
         backgroundColor: AppColors.panel,
-        textStyle: const TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
+        textStyle: TextStyle(
+          fontFamily: _fontFamily,
+          fontFamilyFallback: _fontFallback,
+          fontWeight: FontWeight.w600,
+          fontSize: 14,
+        ),
+        elevation: 0,
       ),
     ),
-    textTheme: const TextTheme(
-      headlineSmall: TextStyle(fontWeight: FontWeight.w700, color: AppColors.text),
-      titleMedium: TextStyle(fontWeight: FontWeight.w600, color: AppColors.text),
-      bodyMedium: TextStyle(color: AppColors.text),
-      bodySmall: TextStyle(color: AppColors.muted, fontSize: 11),
+    textButtonTheme: TextButtonThemeData(
+      style: TextButton.styleFrom(
+        foregroundColor: AppColors.branch1,
+        textStyle: TextStyle(
+          fontFamily: _fontFamily,
+          fontFamilyFallback: _fontFallback,
+          fontWeight: FontWeight.w600,
+          fontSize: 13,
+        ),
+      ),
+    ),
+    dialogTheme: DialogThemeData(
+      backgroundColor: AppColors.panel,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      titleTextStyle: TextStyle(
+        fontFamily: _fontFamily,
+        fontFamilyFallback: _fontFallback,
+        fontWeight: FontWeight.w700,
+        fontSize: 18,
+        color: AppColors.text,
+      ),
+    ),
+    snackBarTheme: SnackBarThemeData(
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+    ),
+    textTheme: TextTheme(
+      headlineSmall: TextStyle(fontWeight: FontWeight.w700, color: AppColors.text, fontFamily: _fontFamily, fontFamilyFallback: _fontFallback),
+      titleMedium: TextStyle(fontWeight: FontWeight.w600, color: AppColors.text, fontFamily: _fontFamily, fontFamilyFallback: _fontFallback),
+      titleSmall: TextStyle(fontWeight: FontWeight.w600, color: AppColors.text, fontFamily: _fontFamily, fontFamilyFallback: _fontFallback, fontSize: 14),
+      bodyMedium: TextStyle(color: AppColors.text, fontFamily: _fontFamily, fontFamilyFallback: _fontFallback),
+      bodySmall: TextStyle(color: AppColors.muted, fontSize: 12, fontFamily: _fontFamily, fontFamilyFallback: _fontFallback),
+      labelSmall: TextStyle(color: AppColors.muted, fontSize: 11, fontFamily: _fontFamily, fontFamilyFallback: _fontFallback),
     ),
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: AppColors.panel,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+      hintStyle: const TextStyle(color: AppColors.dim, fontSize: 13),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.line),
@@ -102,6 +156,21 @@ ThemeData buildAppTheme() {
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: AppColors.branch1, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(12),
+        borderSide: const BorderSide(color: AppColors.danger),
+      ),
+    ),
+    dividerTheme: const DividerThemeData(
+      color: AppColors.line,
+      thickness: 1,
+      space: 0,
+    ),
+    bottomSheetTheme: const BottomSheetThemeData(
+      backgroundColor: AppColors.panel,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
     ),
   );

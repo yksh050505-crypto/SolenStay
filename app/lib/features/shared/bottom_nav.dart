@@ -26,17 +26,45 @@ class AppBottomNav extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 64,
-      decoration: const BoxDecoration(
-        color: AppColors.bg,
-        border: Border(top: BorderSide(color: AppColors.line)),
-      ),
-      child: Row(
-        children: [
-          _NavItem(icon: Icons.home_outlined, label: '홈', active: active == BottomTab.home, onTap: () => _go(context, BottomTab.home)),
-          _NavItem(icon: Icons.calendar_today_outlined, label: '일정', active: active == BottomTab.calendar, onTap: () => _go(context, BottomTab.calendar)),
-          _NavItem(icon: Icons.person_outline, label: '내정보', active: active == BottomTab.profile, onTap: () => _go(context, BottomTab.profile)),
+      height: 68,
+      decoration: BoxDecoration(
+        color: AppColors.panel,
+        border: const Border(top: BorderSide(color: AppColors.line)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.04),
+            blurRadius: 8,
+            offset: const Offset(0, -2),
+          ),
         ],
+      ),
+      child: SafeArea(
+        top: false,
+        child: Row(
+          children: [
+            _NavItem(
+              icon: Icons.home_rounded,
+              iconOutlined: Icons.home_outlined,
+              label: '홈',
+              active: active == BottomTab.home,
+              onTap: () => _go(context, BottomTab.home),
+            ),
+            _NavItem(
+              icon: Icons.calendar_today_rounded,
+              iconOutlined: Icons.calendar_today_outlined,
+              label: '일정',
+              active: active == BottomTab.calendar,
+              onTap: () => _go(context, BottomTab.calendar),
+            ),
+            _NavItem(
+              icon: Icons.person_rounded,
+              iconOutlined: Icons.person_outline,
+              label: '내정보',
+              active: active == BottomTab.profile,
+              onTap: () => _go(context, BottomTab.profile),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -44,24 +72,41 @@ class AppBottomNav extends StatelessWidget {
 
 class _NavItem extends StatelessWidget {
   final IconData icon;
+  final IconData iconOutlined;
   final String label;
   final bool active;
   final VoidCallback onTap;
-  const _NavItem({required this.icon, required this.label, required this.active, required this.onTap});
+  const _NavItem({
+    required this.icon,
+    required this.iconOutlined,
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? AppColors.branch1 : AppColors.muted;
+    final color = active ? AppColors.branch1 : AppColors.dim;
     return Expanded(
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, color: color, size: 22),
-            const SizedBox(height: 3),
-            Text(label, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w600)),
-          ],
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(active ? icon : iconOutlined, color: color, size: 24),
+              const SizedBox(height: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  fontWeight: active ? FontWeight.w700 : FontWeight.w500,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

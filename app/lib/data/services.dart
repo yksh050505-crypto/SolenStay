@@ -30,8 +30,11 @@ final currentUserProvider = StreamProvider<UserModel?>((ref) {
       .map((snap) => snap.exists ? UserModel.fromDoc(snap) : null);
 });
 
-// ===== 호점 =====
+// ===== 호점 (인증된 사용자만) =====
 final branchesProvider = StreamProvider<List<BranchModel>>((ref) {
+  final user = ref.watch(firebaseUserProvider).value;
+  if (user == null) return Stream.value(const <BranchModel>[]);
+
   return ref
       .watch(firestoreProvider)
       .collection('branches')
@@ -41,8 +44,11 @@ final branchesProvider = StreamProvider<List<BranchModel>>((ref) {
         ..sort((a, b) => a.id.compareTo(b.id)));
 });
 
-// ===== 청소 — 오늘자 =====
+// ===== 청소 — 오늘자 (인증된 사용자만) =====
 final todayCleaningsProvider = StreamProvider<List<CleaningModel>>((ref) {
+  final user = ref.watch(firebaseUserProvider).value;
+  if (user == null) return Stream.value(const <CleaningModel>[]);
+
   final now = DateTime.now();
   final start = DateTime(now.year, now.month, now.day);
   final end = start.add(const Duration(days: 1));
@@ -59,6 +65,9 @@ final todayCleaningsProvider = StreamProvider<List<CleaningModel>>((ref) {
 
 // ===== 청소 — 앞으로 (캘린더용) =====
 final upcomingCleaningsProvider = StreamProvider<List<CleaningModel>>((ref) {
+  final user = ref.watch(firebaseUserProvider).value;
+  if (user == null) return Stream.value(const <CleaningModel>[]);
+
   final now = DateTime.now();
   final start = DateTime(now.year, now.month, now.day);
   final end = start.add(const Duration(days: 31));
@@ -73,8 +82,31 @@ final upcomingCleaningsProvider = StreamProvider<List<CleaningModel>>((ref) {
       .map((s) => s.docs.map(CleaningModel.fromDoc).toList());
 });
 
+// ===== 다가오는 예약 (캘린더 바 + 체크인/체크아웃 표시용) =====
+final upcomingReservationsProvider = StreamProvider<List<ReservationModel>>((ref) {
+  final user = ref.watch(firebaseUserProvider).value;
+  if (user == null) return Stream.value(const <ReservationModel>[]);
+
+  final now = DateTime.now();
+  // 오늘 - 7일 ~ 오늘 + 90일 범위의 체크아웃 예약 (현재 진행 중 예약도 포함하기 위해 과거 7일)
+  final start = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 7));
+  final end = start.add(const Duration(days: 120));
+
+  return ref
+      .watch(firestoreProvider)
+      .collection('reservations')
+      .where('checkOut', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+      .where('checkOut', isLessThan: Timestamp.fromDate(end))
+      .snapshots()
+      .map((s) => s.docs.map(ReservationModel.fromDoc).toList()
+        ..sort((a, b) => a.checkIn.compareTo(b.checkIn)));
+});
+
 // ===== 매니저용 — 미지정 청소 =====
 final unassignedCleaningsProvider = StreamProvider<List<CleaningModel>>((ref) {
+  final user = ref.watch(firebaseUserProvider).value;
+  if (user == null) return Stream.value(const <CleaningModel>[]);
+
   final now = DateTime.now();
   return ref
       .watch(firestoreProvider)

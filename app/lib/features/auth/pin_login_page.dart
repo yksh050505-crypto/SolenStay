@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../core/theme.dart';
 import '../../data/services.dart';
 
-/// ① PIN 로그인 — 이름 선택 + 6자리 PIN 입력 (디자인 목업과 동일 구조)
+/// ① PIN 로그인 — 이름 선택 + 6자리 PIN 입력 (네이티브 키패드 사용)
 class PinLoginPage extends ConsumerStatefulWidget {
   const PinLoginPage({super.key});
 
@@ -15,16 +16,25 @@ class PinLoginPage extends ConsumerStatefulWidget {
 
 class _PinLoginPageState extends ConsumerState<PinLoginPage> {
   String? _selectedName;
-  String _pin = '';
+  final _pinCtrl = TextEditingController();
+  final _pinFocus = FocusNode();
   bool _loading = false;
   String? _error;
+
+  @override
+  void dispose() {
+    _pinCtrl.dispose();
+    _pinFocus.dispose();
+    super.dispose();
+  }
 
   Future<void> _submit() async {
     if (_selectedName == null) {
       setState(() => _error = '이름을 선택하세요');
       return;
     }
-    if (_pin.length < 4) {
+    final pin = _pinCtrl.text;
+    if (pin.length < 4) {
       setState(() => _error = 'PIN 4자리 이상 입력');
       return;
     }
@@ -34,191 +44,308 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
     });
     try {
       final fn = ref.read(functionsServiceProvider);
-      final result = await fn.signInWithPin(name: _selectedName!, pin: _pin);
+      final result = await fn.signInWithPin(name: _selectedName!, pin: pin);
       final token = result['token'] as String;
-      await FirebaseAuth.instance.signInWithCustomToken(token);
-      // 라우터가 자동으로 /home으로 보냄
+      final cred = await FirebaseAuth.instance.signInWithCustomToken(token);
+      // 토큰 강제 새로고침 - Custom Claims가 Firestore 요청에 즉시 반영되도록
+      await cred.user?.getIdTokenResult(true);
     } catch (e) {
       setState(() {
         _error = e.toString().contains('invalid name or pin')
             ? '이름 또는 PIN이 올바르지 않습니다'
-            : '로그인 실패: ${e.toString()}';
+            : '로그인 실패';
+        _pinCtrl.clear();
       });
     } finally {
       if (mounted) setState(() => _loading = false);
     }
   }
 
+  void _onSelectName(String name) {
+    setState(() {
+      _selectedName = name;
+      _error = null;
+    });
+    // 이름 선택 직후 PIN 입력으로 포커스 이동
+    Future.delayed(const Duration(milliseconds: 100), () {
+      if (mounted) _pinFocus.requestFocus();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final maxWidth = screenWidth > 420 ? 400.0 : screenWidth;
+
     return Scaffold(
+      backgroundColor: AppColors.bg,
+      // 키보드가 올라올 때 화면이 자동으로 조정되도록
+      resizeToAvoidBottomInset: true,
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 30),
-          child: Column(
-            children: [
-              // 로고
-              Container(
-                width: 110,
-                height: 110,
-                decoration: BoxDecoration(
-                  color: const Color(0xFFFAEDD0),
-                  borderRadius: BorderRadius.circular(24),
-                  boxShadow: [
-                    BoxShadow(
-                      color: const Color(0xFF3B2516).withOpacity(0.18),
-                      blurRadius: 40,
-                      offset: const Offset(0, 20),
+        child: Center(
+          child: SizedBox(
+            width: maxWidth,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
+              child: Column(
+                children: [
+                  // 로고
+                  Container(
+                    width: 90,
+                    height: 90,
+                    decoration: BoxDecoration(
+                      color: const Color(0xFFFAEDD0),
+                      borderRadius: BorderRadius.circular(22),
+                      boxShadow: [
+                        BoxShadow(
+                          color: const Color(0xFF3B2516).withOpacity(0.12),
+                          blurRadius: 30,
+                          offset: const Offset(0, 14),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-                child: const Center(
-                  child: Text(
-                    'SOLEN\nSTAY',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      fontFamily: 'serif',
-                      fontSize: 22,
-                      fontWeight: FontWeight.w700,
-                      color: Color(0xFF3B2516),
-                      height: 1.05,
+                    child: const Center(
+                      child: Text(
+                        'SOLEN\nSTAY',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          fontFamily: 'serif',
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          color: Color(0xFF3B2516),
+                          height: 1.1,
+                          letterSpacing: 1.5,
+                        ),
+                      ),
                     ),
                   ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              const Text('SolenStay', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w700)),
-              const SizedBox(height: 6),
-              const Text('PIN 로그인', style: TextStyle(color: AppColors.muted, fontSize: 13)),
-              const SizedBox(height: 28),
+                  const SizedBox(height: 14),
+                  const Text('SolenStay', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                  const SizedBox(height: 4),
+                  const Text('청소 관리 시스템', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+                  const SizedBox(height: 24),
 
-              // 이름 카드 (Cloud Function 호출, 인증 없이)
-              Consumer(builder: (context, ref, _) {
-                return FutureBuilder<List<String>>(
-                  future: ref.read(functionsServiceProvider).listLoginCandidates(),
-                  builder: (context, snap) {
-                    if (snap.connectionState != ConnectionState.done) {
-                      return const Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator());
-                    }
-                    if (snap.hasError) {
-                      return Padding(
-                        padding: const EdgeInsets.all(16),
-                        child: Text('사용자 목록 로드 실패: ${snap.error}', style: const TextStyle(color: AppColors.danger, fontSize: 12)),
-                      );
-                    }
-                    final names = snap.data ?? const <String>[];
-                    if (names.isEmpty) {
-                      return const Padding(
-                        padding: EdgeInsets.all(16),
-                        child: Text('등록된 사용자가 없습니다.', style: TextStyle(color: AppColors.muted, fontSize: 13)),
-                      );
-                    }
-                    return GridView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2, mainAxisSpacing: 8, crossAxisSpacing: 8, childAspectRatio: 2.4,
-                      ),
-                      itemCount: names.length,
-                      itemBuilder: (_, i) {
-                        final n = names[i];
-                        final selected = _selectedName == n;
-                        return InkWell(
-                          onTap: () => setState(() => _selectedName = n),
-                          child: Container(
+                  // 이름 카드
+                  Consumer(builder: (context, ref, _) {
+                    return FutureBuilder<List<String>>(
+                      future: ref.read(functionsServiceProvider).listLoginCandidates(),
+                      builder: (context, snap) {
+                        if (snap.connectionState != ConnectionState.done) {
+                          return const Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator());
+                        }
+                        if (snap.hasError) {
+                          return Container(
+                            padding: const EdgeInsets.all(16),
                             decoration: BoxDecoration(
-                              color: selected ? const Color(0x1A3B82F6) : AppColors.panel,
+                              color: AppColors.danger.withOpacity(0.08),
                               borderRadius: BorderRadius.circular(12),
-                              border: Border.all(color: selected ? AppColors.branch1 : AppColors.line),
                             ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                            child: const Row(
                               children: [
-                                CircleAvatar(
-                                  radius: 14,
-                                  backgroundColor: AppColors.branch1,
-                                  child: Text(n.isNotEmpty ? n[0] : '?', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700)),
+                                Icon(Icons.error_outline, color: AppColors.danger, size: 18),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    '사용자 목록 로드 실패',
+                                    style: TextStyle(color: AppColors.danger, fontSize: 13),
+                                  ),
                                 ),
-                                const SizedBox(width: 8),
-                                Text(n, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                               ],
                             ),
-                          ),
+                          );
+                        }
+                        final names = snap.data ?? const <String>[];
+                        if (names.isEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.all(20),
+                            child: Text('등록된 사용자가 없습니다.', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+                          );
+                        }
+                        return Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '이름을 선택하세요',
+                              style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w600),
+                            ),
+                            const SizedBox(height: 8),
+                            GridView.builder(
+                              shrinkWrap: true,
+                              physics: const NeverScrollableScrollPhysics(),
+                              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                crossAxisCount: 2,
+                                mainAxisSpacing: 8,
+                                crossAxisSpacing: 8,
+                                childAspectRatio: 2.6,
+                              ),
+                              itemCount: names.length,
+                              itemBuilder: (_, i) {
+                                final n = names[i];
+                                final selected = _selectedName == n;
+                                return Material(
+                                  color: selected ? AppColors.branch1.withOpacity(0.08) : AppColors.panel,
+                                  borderRadius: BorderRadius.circular(12),
+                                  child: InkWell(
+                                    onTap: () => _onSelectName(n),
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: selected ? AppColors.branch1 : AppColors.line,
+                                          width: selected ? 2 : 1,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          CircleAvatar(
+                                            radius: 15,
+                                            backgroundColor: selected ? AppColors.branch1 : AppColors.dim,
+                                            child: Text(
+                                              n.isNotEmpty ? n[0] : '?',
+                                              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            n,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
+                                              color: selected ? AppColors.branch1 : AppColors.text,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         );
                       },
                     );
-                  },
-                );
-              }),
+                  }),
 
-              const SizedBox(height: 18),
+                  const SizedBox(height: 24),
 
-              // PIN dots
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: List.generate(6, (i) {
-                  final filled = i < _pin.length;
-                  return Container(
-                    margin: const EdgeInsets.symmetric(horizontal: 5),
-                    width: 14, height: 14,
-                    decoration: BoxDecoration(
-                      color: filled ? AppColors.branch1 : AppColors.panel2,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: filled ? AppColors.branch1 : AppColors.line, width: 2),
-                    ),
-                  );
-                }),
-              ),
-              const SizedBox(height: 16),
-
-              // 키패드
-              SizedBox(
-                width: double.infinity,
-                child: GridView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 3, mainAxisSpacing: 8, crossAxisSpacing: 8, childAspectRatio: 1.6,
+                  // PIN 라벨
+                  const Text(
+                    'PIN 입력',
+                    style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
-                  itemCount: 12,
-                  itemBuilder: (_, i) {
-                    if (i == 9) return const SizedBox.shrink();
-                    final label = i == 10 ? '0' : i == 11 ? '⌫' : '${i + 1}';
-                    return InkWell(
-                      onTap: () {
-                        setState(() {
-                          if (i == 11) {
-                            if (_pin.isNotEmpty) _pin = _pin.substring(0, _pin.length - 1);
-                          } else if (_pin.length < 6) {
-                            _pin += label;
-                            if (_pin.length == 6) _submit();
-                          }
-                        });
-                      },
-                      child: Container(
+                  const SizedBox(height: 12),
+
+                  // PIN dots (시각적 표시)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: List.generate(6, (i) {
+                      final filled = i < _pinCtrl.text.length;
+                      return AnimatedContainer(
+                        duration: const Duration(milliseconds: 120),
+                        margin: const EdgeInsets.symmetric(horizontal: 6),
+                        width: filled ? 16 : 14,
+                        height: filled ? 16 : 14,
                         decoration: BoxDecoration(
-                          color: AppColors.panel,
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppColors.line),
+                          color: filled ? AppColors.branch1 : Colors.transparent,
+                          shape: BoxShape.circle,
+                          border: Border.all(
+                            color: filled ? AppColors.branch1 : AppColors.line,
+                            width: 2,
+                          ),
                         ),
-                        alignment: Alignment.center,
-                        child: Text(label, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w600)),
+                      );
+                    }),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // PIN 입력 TextField (네이티브 키패드 호출)
+                  TextField(
+                    controller: _pinCtrl,
+                    focusNode: _pinFocus,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: false, signed: false),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                      LengthLimitingTextInputFormatter(6),
+                    ],
+                    obscureText: true,
+                    obscuringCharacter: '●',
+                    autofocus: false,
+                    enabled: !_loading,
+                    enableSuggestions: false,
+                    autocorrect: false,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 24,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 16,
+                      color: AppColors.text,
+                    ),
+                    decoration: InputDecoration(
+                      hintText: '숫자 6자리',
+                      hintStyle: TextStyle(
+                        color: AppColors.dim,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w500,
+                        letterSpacing: 0,
                       ),
-                    );
-                  },
-                ),
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                      counter: const SizedBox.shrink(),
+                    ),
+                    onChanged: (value) {
+                      setState(() => _error = null);
+                      if (value.length == 6) {
+                        // 6자리 입력 완료 시 자동 제출
+                        _pinFocus.unfocus();
+                        _submit();
+                      }
+                    },
+                    onSubmitted: (_) => _submit(),
+                  ),
+                  const SizedBox(height: 14),
+
+                  // 로그인 버튼 (수동 제출용)
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton(
+                      onPressed: _loading ? null : _submit,
+                      style: FilledButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                      ),
+                      child: _loading
+                          ? const SizedBox(
+                              width: 20,
+                              height: 20,
+                              child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
+                            )
+                          : const Text('로그인', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                    ),
+                  ),
+
+                  // 에러 메시지
+                  if (_error != null) ...[
+                    const SizedBox(height: 14),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                      decoration: BoxDecoration(
+                        color: AppColors.danger.withOpacity(0.08),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.error_outline, color: AppColors.danger, size: 16),
+                          const SizedBox(width: 6),
+                          Text(_error!, style: const TextStyle(color: AppColors.danger, fontSize: 13, fontWeight: FontWeight.w500)),
+                        ],
+                      ),
+                    ),
+                  ],
+                ],
               ),
-
-              if (_error != null) ...[
-                const SizedBox(height: 12),
-                Text(_error!, style: const TextStyle(color: AppColors.danger, fontSize: 13)),
-              ],
-
-              if (_loading) ...[
-                const SizedBox(height: 16),
-                const CircularProgressIndicator(),
-              ],
-            ],
+            ),
           ),
         ),
       ),

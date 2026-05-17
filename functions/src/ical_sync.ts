@@ -21,18 +21,41 @@ interface BranchDoc {
   active: boolean;
 }
 
+/**
+ * 통합 형식: "[OTA] 게스트명(N명) / 날짜 - 날짜" (날짜 부분은 매칭하지 않음 - 형식 다양성 허용)
+ * SUMMARY에서 OTA, 이름, 인원수를 추출
+ */
+const UNIFIED_FORMAT = /^\s*\[(?<ota>[^\]]+)\]\s*(?<name>.+?)\s*\(\s*(?<count>\d+)\s*[명인]\s*\)/;
+
 /** iCal SUMMARY/DESCRIPTION에서 OTA 추정 */
-function detectOTA(summary: string, description: string): 'airbnb' | 'booking' | 'direct' | 'unknown' {
+function detectOTA(summary: string, description: string): 'airbnb' | 'booking' | 'agoda' | 'direct' | 'unknown' {
+  // 통합 형식 [OTA] prefix 우선
+  const unified = summary.match(UNIFIED_FORMAT);
+  if (unified?.groups?.ota) {
+    const ota = unified.groups.ota.toLowerCase().trim();
+    if (ota.includes('airbnb')) return 'airbnb';
+    if (ota.includes('booking')) return 'booking';
+    if (ota.includes('agoda') || ota.includes('아고다')) return 'agoda';
+    if (ota.includes('direct') || ota.includes('직접')) return 'direct';
+  }
+
   const text = `${summary} ${description}`.toLowerCase();
   if (text.includes('airbnb')) return 'airbnb';
   if (text.includes('booking')) return 'booking';
+  if (text.includes('agoda') || text.includes('아고다')) return 'agoda';
   if (text.includes('direct') || text.includes('직접')) return 'direct';
   return 'unknown';
 }
 
 /** SUMMARY에서 게스트 이름 추출 시도 */
 function extractGuestName(summary: string): string {
-  // Airbnb 형식: "Reserved - Guest Name" 또는 "Name (HMxxxxx)"
+  // 1순위: 통합 형식 "[OTA] 이름(N명) / 날짜 - 날짜"
+  const unified = summary.match(UNIFIED_FORMAT);
+  if (unified?.groups?.name) {
+    return unified.groups.name.trim();
+  }
+
+  // 2순위: Airbnb 원본 형식 "Reserved - Guest Name" 또는 "Name (HMxxxxx)"
   const airbnbMatch = summary.match(/(?:Reserved\s*[-–]\s*)?(.+?)(?:\s*\(HM\w+\))?$/i);
   if (airbnbMatch && airbnbMatch[1]) {
     return airbnbMatch[1].trim();
@@ -40,8 +63,21 @@ function extractGuestName(summary: string): string {
   return summary.trim() || '게스트';
 }
 
-/** DESCRIPTION에서 인원수 파싱 시도 (없으면 0) */
-function extractGuestCount(description: string): number {
+/** SUMMARY/DESCRIPTION에서 인원수 파싱 (없으면 0) */
+function extractGuestCount(description: string, summary: string = ''): number {
+  // 1순위: 통합 형식 "(N명)" in summary
+  const unified = summary.match(UNIFIED_FORMAT);
+  if (unified?.groups?.count) {
+    return parseInt(unified.groups.count, 10);
+  }
+
+  // 2순위: summary 안에서 "(N명)" 또는 "N인" 찾기
+  const summaryMatch = summary.match(/\((\d+)\s*[명인]\)/);
+  if (summaryMatch) {
+    return parseInt(summaryMatch[1], 10);
+  }
+
+  // 3순위: description에서 찾기
   const match = description.match(/(\d+)\s*(인|명|guests?|adults?)/i);
   return match ? parseInt(match[1], 10) : 0;
 }
@@ -85,7 +121,7 @@ async function syncBranch(branchId: string, branch: BranchDoc): Promise<{ added:
       branchId,
       ota: detectOTA(summary, description),
       guestName: extractGuestName(summary),
-      guestCount: extractGuestCount(description),
+      guestCount: extractGuestCount(description, summary),
       checkIn: admin.firestore.Timestamp.fromDate(start),
       checkOut: admin.firestore.Timestamp.fromDate(end),
       iCalUid,
@@ -105,7 +141,9 @@ async function syncBranch(branchId: string, branch: BranchDoc): Promise<{ added:
       const changed =
         prev.checkIn.toDate().getTime() !== start.getTime() ||
         prev.checkOut.toDate().getTime() !== end.getTime() ||
-        prev.guestName !== payload.guestName;
+        prev.guestName !== payload.guestName ||
+        (prev.guestCount ?? 0) !== payload.guestCount ||
+        prev.ota !== payload.ota;
       if (changed) {
         batch.update(ref, payload);
         updated++;

@@ -70,7 +70,7 @@ class ProfilePage extends ConsumerWidget {
             ),
             const SizedBox(height: 22),
 
-            // 매니저 전용
+            // 매니저/실장 전용
             if (user?.canManageDashboard ?? false) ...[
               const _SectionTitle('관리'),
               _menuItem(
@@ -78,6 +78,13 @@ class ProfilePage extends ConsumerWidget {
                 label: '매니저 대시보드',
                 onTap: () => context.push('/manager'),
               ),
+              // 매니저만 — 관리자 설정
+              if (user?.isManager ?? false)
+                _menuItem(
+                  emoji: '⚙️',
+                  label: '관리자 설정',
+                  onTap: () => context.push('/admin/settings'),
+                ),
               const SizedBox(height: 14),
             ],
 

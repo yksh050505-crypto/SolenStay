@@ -10,6 +10,8 @@ import 'features/completion/completion_page.dart';
 import 'features/calendar/calendar_page.dart';
 import 'features/profile/profile_page.dart';
 import 'features/manager/manager_dashboard_page.dart';
+import 'features/notifications/notifications_page.dart';
+import 'features/admin/admin_settings_page.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
@@ -36,6 +38,8 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/calendar', builder: (_, __) => const CalendarPage()),
       GoRoute(path: '/profile', builder: (_, __) => const ProfilePage()),
       GoRoute(path: '/manager', builder: (_, __) => const ManagerDashboardPage()),
+      GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
+      GoRoute(path: '/admin/settings', builder: (_, __) => const AdminSettingsPage()),
     ],
   );
 });

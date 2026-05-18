@@ -70,6 +70,12 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         data: (reservations) {
           final selectedDay = _selectedDay ?? DateTime.now();
           final selectedReservations = _reservationsOnDay(reservations, selectedDay);
+          // 예약 ID → 청소 매핑 (미지정 표시용)
+          final cleaningsList = cleaningsAsync.valueOrNull ?? const <CleaningModel>[];
+          final cleaningByResId = <String, CleaningModel>{
+            for (final c in cleaningsList)
+              if (c.reservationId.isNotEmpty) c.reservationId: c,
+          };
 
           return Column(
             children: [
@@ -97,7 +103,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                   rightChevronIcon: Icon(Icons.chevron_right, color: AppColors.text),
                 ),
                 daysOfWeekHeight: 26,
-                rowHeight: 56,
+                rowHeight: 82,
                 daysOfWeekStyle: const DaysOfWeekStyle(
                   weekdayStyle: TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.w600),
                   weekendStyle: TextStyle(color: AppColors.danger, fontSize: 11, fontWeight: FontWeight.w600),
@@ -111,14 +117,13 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                   markersMaxCount: 0, // 기본 점 마커 비활성
                 ),
                 calendarBuilders: CalendarBuilders(
-                  defaultBuilder: (context, day, _) => _buildDayCell(day, reservations, selected: false, today: false),
-                  todayBuilder: (context, day, _) => _buildDayCell(day, reservations, selected: false, today: true),
-                  selectedBuilder: (context, day, _) => _buildDayCell(day, reservations, selected: true, today: isSameDay(day, DateTime.now())),
+                  defaultBuilder: (context, day, _) => _buildDayCell(day, reservations, cleaningByResId, selected: false, today: false),
+                  todayBuilder: (context, day, _) => _buildDayCell(day, reservations, cleaningByResId, selected: false, today: true),
+                  selectedBuilder: (context, day, _) => _buildDayCell(day, reservations, cleaningByResId, selected: true, today: isSameDay(day, DateTime.now())),
                   outsideBuilder: (context, day, _) => Opacity(
                     opacity: 0.35,
-                    child: _buildDayCell(day, reservations, selected: false, today: false),
+                    child: _buildDayCell(day, reservations, cleaningByResId, selected: false, today: false),
                   ),
-                  // 마커는 우리가 셀 안에서 직접 그리므로 빈 위젯
                   markerBuilder: (_, __, ___) => const SizedBox.shrink(),
                 ),
               ),
@@ -163,7 +168,13 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   }
 
   /// 날짜 셀 렌더링 — 호점별 색상 바를 좌우로 연결되도록 그림
-  Widget _buildDayCell(DateTime day, List<ReservationModel> all, {required bool selected, required bool today}) {
+  Widget _buildDayCell(
+    DateTime day,
+    List<ReservationModel> all,
+    Map<String, CleaningModel> cleaningByResId, {
+    required bool selected,
+    required bool today,
+  }) {
     final dayReservations = _reservationsOnDay(all, day);
 
     return Container(
@@ -196,14 +207,15 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
             ),
           ),
           const Spacer(),
-          // 호점별 바 (최대 3개)
+          // 호점별 바 (최대 3개) — 미지정 청소면 ⚠ 표시
           Padding(
             padding: const EdgeInsets.only(bottom: 4, left: 2, right: 2),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: dayReservations.take(3).map((r) {
                 final pos = _positionOnDay(r, day);
-                return _branchBar(r.branchId, pos);
+                final isUnassigned = cleaningByResId[r.id]?.isUnassigned ?? false;
+                return _branchBar(r, pos, isUnassigned);
               }).toList(),
             ),
           ),
@@ -213,24 +225,76 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
   }
 
   /// 호점 색상 바 (좌/우 둥글기는 위치에 따라)
-  Widget _branchBar(String branchId, _DayPosition pos) {
-    final color = AppColors.branchColor(branchId);
-    // 끝과 끝은 둥글게, 중간은 직각으로 연결
-    final left = pos == _DayPosition.start || pos == _DayPosition.single;
-    final right = pos == _DayPosition.end || pos == _DayPosition.single;
+  /// 시작 셀에 게스트 이름 + 인원수 표시. 미지정 청소면 주황 ! 뱃지
+  Widget _branchBar(ReservationModel r, _DayPosition pos, bool isUnassigned) {
+    final color = AppColors.branchColor(r.branchId);
+    final isStart = pos == _DayPosition.start || pos == _DayPosition.single;
+    final isEnd = pos == _DayPosition.end || pos == _DayPosition.single;
 
     return Container(
-      height: 4,
+      height: 16,
       margin: const EdgeInsets.only(top: 2),
       decoration: BoxDecoration(
         color: color,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(left ? 2 : 0),
-          bottomLeft: Radius.circular(left ? 2 : 0),
-          topRight: Radius.circular(right ? 2 : 0),
-          bottomRight: Radius.circular(right ? 2 : 0),
+          topLeft: Radius.circular(isStart ? 8 : 0),
+          bottomLeft: Radius.circular(isStart ? 8 : 0),
+          topRight: Radius.circular(isEnd ? 8 : 0),
+          bottomRight: Radius.circular(isEnd ? 8 : 0),
         ),
       ),
+      child: isStart
+          ? ClipRect(
+              clipBehavior: Clip.none,
+              child: OverflowBox(
+                alignment: Alignment.centerLeft,
+                maxWidth: 1000, // 옆 셀로 텍스트 오버플로
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isUnassigned) ...[
+                        // 미지정 ⚠ 주황 뱃지
+                        Container(
+                          width: 14,
+                          height: 14,
+                          decoration: const BoxDecoration(
+                            color: AppColors.warn,
+                            shape: BoxShape.circle,
+                          ),
+                          alignment: Alignment.center,
+                          child: const Text(
+                            '!',
+                            style: TextStyle(
+                              fontSize: 9,
+                              color: Colors.white,
+                              fontWeight: FontWeight.w900,
+                              height: 1.0,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 3),
+                      ],
+                      Flexible(
+                        child: Text(
+                          '${r.guestName} (${r.guestCount}명)',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            color: Colors.white,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          softWrap: false,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            )
+          : null,
     );
   }
 }

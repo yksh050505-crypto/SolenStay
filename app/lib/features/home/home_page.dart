@@ -7,6 +7,7 @@ import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/services.dart';
 import '../cleaning_detail/cleaning_detail_page.dart' show reservationProvider;
+import '../notifications/notifications_page.dart' show unreadNotificationCountProvider;
 import '../shared/bottom_nav.dart';
 
 /// ② 다가오는 청소 (홈) — 호점별로 가장 가까운 체크아웃 청소 표시
@@ -49,20 +50,8 @@ class HomePage extends ConsumerWidget {
                       ],
                     ),
                   ),
-                  if (user?.canManageDashboard ?? false)
-                    Container(
-                      decoration: BoxDecoration(
-                        color: AppColors.panel,
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.line),
-                      ),
-                      child: IconButton(
-                        icon: const Icon(Icons.dashboard_outlined, size: 20),
-                        onPressed: () => context.push('/manager'),
-                        tooltip: '매니저 대시보드',
-                        color: AppColors.text,
-                      ),
-                    ),
+                  // 알림 버튼 (모든 사용자) + 미읽 뱃지
+                  _NotificationButton(),
                 ],
               ),
               const SizedBox(height: 18),
@@ -119,6 +108,7 @@ class HomePage extends ConsumerWidget {
                     return _BranchList(
                       branches: loadedBranches,
                       cleanings: cleaningsAsync.valueOrNull ?? const <CleaningModel>[],
+                      myUid: user?.uid,
                     );
                   },
                 ),
@@ -131,20 +121,26 @@ class HomePage extends ConsumerWidget {
   }
 }
 
-/// 호점 목록 — 각 호점의 가장 가까운 다가오는 청소 1건 표시
+/// 호점 목록 — 내가 담당(claim)한 청소만 호점별로 가장 가까운 1건씩 표시
 class _BranchList extends StatelessWidget {
   final List<BranchModel> branches;
   final List<CleaningModel> cleanings; // 이미 scheduledDate 오름차순 정렬됨
-  const _BranchList({required this.branches, required this.cleanings});
+  final String? myUid;
+  const _BranchList({required this.branches, required this.cleanings, required this.myUid});
 
   @override
   Widget build(BuildContext context) {
-    // 호점별로 가장 가까운 다가오는 청소 1건만 추출
+    // 내가 담당한 청소만 필터
+    final myCleanings = myUid == null
+        ? const <CleaningModel>[]
+        : cleanings.where((c) => c.assigneeUid == myUid).toList();
+
+    // 호점별로 가장 가까운 내 청소 1건씩
     final Map<String, CleaningModel?> nearestByBranch = {};
     for (final b in branches) {
       nearestByBranch[b.id] = null;
     }
-    for (final c in cleanings) {
+    for (final c in myCleanings) {
       if (nearestByBranch.containsKey(c.branchId) && nearestByBranch[c.branchId] == null) {
         nearestByBranch[c.branchId] = c;
       }
@@ -162,6 +158,57 @@ class _BranchList extends StatelessWidget {
         }
         return _TaskCard(cleaning: nearest, branch: branch);
       },
+    );
+  }
+}
+
+/// 미읽 알림 개수 뱃지가 표시되는 알림 버튼
+class _NotificationButton extends ConsumerWidget {
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final unread = ref.watch(unreadNotificationCountProvider);
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.panel,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.notifications_none_rounded, size: 22),
+            onPressed: () => context.push('/notifications'),
+            tooltip: '알림',
+            color: AppColors.text,
+          ),
+          if (unread > 0)
+            Positioned(
+              right: 4,
+              top: 4,
+              child: Container(
+                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                decoration: BoxDecoration(
+                  color: AppColors.danger,
+                  borderRadius: BorderRadius.circular(999),
+                  border: Border.all(color: AppColors.panel, width: 1.5),
+                ),
+                alignment: Alignment.center,
+                child: Text(
+                  unread > 99 ? '99+' : '$unread',
+                  style: const TextStyle(
+                    color: Colors.white,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w800,
+                    height: 1.0,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
@@ -250,26 +297,20 @@ class _TaskCard extends ConsumerWidget {
             borderRadius: BorderRadius.circular(14),
             border: Border.all(color: AppColors.line),
           ),
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // 좌측 호점 컬러바
-                Container(
-                  width: 4,
-                  decoration: BoxDecoration(
-                    color: branchColor,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(14),
-                      bottomLeft: Radius.circular(14),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
+          clipBehavior: Clip.antiAlias,
+          child: Row(
+            children: [
+              // 좌측 호점 컬러바 (고정 width, 자동 height)
+              Container(
+                width: 4,
+                constraints: const BoxConstraints(minHeight: 50),
+                color: branchColor,
+              ),
+              const SizedBox(width: 12),
                 // 호점 정보
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    padding: const EdgeInsets.symmetric(vertical: 10),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -325,8 +366,7 @@ class _TaskCard extends ConsumerWidget {
                     child: Icon(Icons.chevron_right, color: AppColors.dim, size: 18),
                   ),
                 ),
-              ],
-            ),
+            ],
           ),
         ),
       ),
@@ -391,25 +431,19 @@ class _EmptyBranchCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: AppColors.line),
       ),
-      child: IntrinsicHeight(
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            // 좌측 호점 컬러바
-            Container(
-              width: 4,
-              decoration: BoxDecoration(
-                color: branchColor.withOpacity(0.5),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(14),
-                  bottomLeft: Radius.circular(14),
-                ),
-              ),
-            ),
-            const SizedBox(width: 12),
+      clipBehavior: Clip.antiAlias,
+      child: Row(
+        children: [
+          // 좌측 호점 컬러바
+          Container(
+            width: 4,
+            constraints: const BoxConstraints(minHeight: 50),
+            color: branchColor.withOpacity(0.5),
+          ),
+          const SizedBox(width: 12),
             Expanded(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: 12),
+                padding: const EdgeInsets.symmetric(vertical: 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.center,
@@ -445,8 +479,7 @@ class _EmptyBranchCard extends StatelessWidget {
                 ),
               ),
             ),
-          ],
-        ),
+        ],
       ),
     );
   }

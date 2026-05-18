@@ -20,6 +20,7 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
   final _pinFocus = FocusNode();
   bool _loading = false;
   String? _error;
+  bool _adminMode = false; // false: 청소원 / true: 매니저·실장
 
   @override
   void dispose() {
@@ -59,6 +60,32 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+  }
+
+  Widget _modeButton({required String label, required bool selected, required VoidCallback onTap}) {
+    return Material(
+      color: selected ? Colors.white : Colors.transparent,
+      borderRadius: BorderRadius.circular(999),
+      elevation: selected ? 1 : 0,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 9),
+          alignment: Alignment.center,
+          child: Text(
+            label,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: selected
+                  ? (label == '관리자' ? AppColors.danger : AppColors.branch1)
+                  : AppColors.muted,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _onSelectName(String name) {
@@ -120,15 +147,65 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  const Text('SolenStay', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5)),
+                  Text(
+                    'SolenStay',
+                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                  ),
                   const SizedBox(height: 4),
-                  const Text('청소 관리 시스템', style: TextStyle(color: AppColors.muted, fontSize: 13)),
-                  const SizedBox(height: 24),
+                  Text(
+                    _adminMode ? '관리자 로그인' : '청소 관리 시스템',
+                    style: TextStyle(
+                      color: _adminMode ? AppColors.danger : AppColors.muted,
+                      fontSize: 13,
+                      fontWeight: _adminMode ? FontWeight.w700 : FontWeight.w500,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+
+                  // 모드 토글 (청소원 / 관리자)
+                  Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: AppColors.panel2,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _modeButton(
+                            label: '청소원',
+                            selected: !_adminMode,
+                            onTap: () => setState(() {
+                              _adminMode = false;
+                              _selectedName = null;
+                              _pinCtrl.clear();
+                              _error = null;
+                            }),
+                          ),
+                        ),
+                        Expanded(
+                          child: _modeButton(
+                            label: '관리자',
+                            selected: _adminMode,
+                            onTap: () => setState(() {
+                              _adminMode = true;
+                              _selectedName = null;
+                              _pinCtrl.clear();
+                              _error = null;
+                            }),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 18),
 
                   // 이름 카드
                   Consumer(builder: (context, ref, _) {
                     return FutureBuilder<List<String>>(
-                      future: ref.read(functionsServiceProvider).listLoginCandidates(),
+                      // _adminMode 변화 시 새로 fetch되도록 key 동기화
+                      key: ValueKey(_adminMode),
+                      future: ref.read(functionsServiceProvider).listLoginCandidates(adminOnly: _adminMode),
                       builder: (context, snap) {
                         if (snap.connectionState != ConnectionState.done) {
                           return const Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator());

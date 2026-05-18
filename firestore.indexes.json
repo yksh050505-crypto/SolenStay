@@ -29,15 +29,25 @@
       "collectionGroup": "reservations",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "checkOut", "order": "ASCENDING" }
+        { "fieldPath": "branchId", "order": "ASCENDING" },
+        { "fieldPath": "checkIn", "order": "ASCENDING" }
       ]
     },
     {
-      "collectionGroup": "reservations",
+      "collectionGroup": "notifications",
       "queryScope": "COLLECTION",
       "fields": [
-        { "fieldPath": "branchId", "order": "ASCENDING" },
-        { "fieldPath": "checkIn", "order": "ASCENDING" }
+        { "fieldPath": "recipientUids", "arrayConfig": "CONTAINS" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "notifications",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "type", "order": "ASCENDING" },
+        { "fieldPath": "senderUid", "order": "ASCENDING" },
+        { "fieldPath": "createdAt", "order": "DESCENDING" }
       ]
     },
     {

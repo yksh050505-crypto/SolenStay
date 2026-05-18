@@ -124,8 +124,8 @@ class FunctionsService {
   final FirebaseFunctions _fn;
   FunctionsService(this._fn);
 
-  Future<List<String>> listLoginCandidates() async {
-    final res = await _fn.httpsCallable('listLoginCandidates').call();
+  Future<List<String>> listLoginCandidates({bool adminOnly = false}) async {
+    final res = await _fn.httpsCallable('listLoginCandidates').call({'adminOnly': adminOnly});
     final data = Map<String, dynamic>.from(res.data as Map);
     return (data['names'] as List<dynamic>).cast<String>();
   }
@@ -181,6 +181,41 @@ class FunctionsService {
     required String role,
   }) async {
     await _fn.httpsCallable('registerUser').call({'name': name, 'pin': pin, 'role': role});
+  }
+
+  /// 매니저 공지사항 작성
+  /// @param target 'all' | 'cleaners' | 'admins'
+  Future<Map<String, dynamic>> createManagerNotice({
+    required String title,
+    required String body,
+    String target = 'all',
+  }) async {
+    final res = await _fn.httpsCallable('createManagerNotice').call({
+      'title': title,
+      'body': body,
+      'target': target,
+    });
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
+  /// 매니저 공지사항 수정 (작성자 본인만)
+  Future<void> updateManagerNotice({
+    required String notificationId,
+    String? title,
+    String? body,
+  }) async {
+    await _fn.httpsCallable('updateManagerNotice').call({
+      'notificationId': notificationId,
+      if (title != null) 'title': title,
+      if (body != null) 'body': body,
+    });
+  }
+
+  /// 매니저 공지사항 삭제 (작성자 본인만)
+  Future<void> deleteManagerNotice(String notificationId) async {
+    await _fn.httpsCallable('deleteManagerNotice').call({
+      'notificationId': notificationId,
+    });
   }
 }
 

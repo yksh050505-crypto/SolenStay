@@ -83,6 +83,10 @@ export const claimCleaning = onCall({ region: REGION }, async (req) => {
   const db = admin.firestore();
   const ref = db.collection('cleanings').doc(cleaningId);
 
+  // 청소원 이름 미리 조회 (denormalize 용)
+  const userDoc = await db.collection('users').doc(auth.uid).get();
+  const userName = (userDoc.data()?.name as string | undefined) ?? '';
+
   await db.runTransaction(async (tx) => {
     const doc = await tx.get(ref);
     if (!doc.exists) {
@@ -97,6 +101,7 @@ export const claimCleaning = onCall({ region: REGION }, async (req) => {
     }
     tx.update(ref, {
       assigneeUid: auth.uid,
+      assigneeName: userName,
       assignedAt: admin.firestore.FieldValue.serverTimestamp(),
       status: 'assigned',
       forceAssigned: false,
@@ -132,6 +137,7 @@ export const releaseCleaning = onCall({ region: REGION }, async (req) => {
     }
     tx.update(ref, {
       assigneeUid: null,
+      assigneeName: null,
       assignedAt: null,
       status: 'unassigned',
     });
@@ -156,9 +162,11 @@ export const forceAssignCleaning = onCall({ region: REGION }, async (req) => {
   if (!userDoc.exists || !userDoc.data()?.active) {
     throw new HttpsError('not-found', '대상 청소원이 존재하지 않거나 비활성');
   }
+  const userName = (userDoc.data()?.name as string | undefined) ?? '';
 
   await db.collection('cleanings').doc(cleaningId).update({
     assigneeUid: uid,
+    assigneeName: userName,
     assignedAt: admin.firestore.FieldValue.serverTimestamp(),
     status: 'assigned',
     forceAssigned: true,

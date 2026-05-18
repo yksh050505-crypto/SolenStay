@@ -138,6 +138,7 @@ class CleaningModel {
   final String reservationId;
   final DateTime scheduledDate;
   final String? assigneeUid;
+  final String? assigneeName; // 담당자 이름 (denormalize, 실장도 읽기 위함)
   final String status; // 'unassigned' | 'assigned' | 'in_progress' | 'completed'
   final List<ChecklistItem> checklist;
   final List<String> photoUrls;
@@ -150,6 +151,7 @@ class CleaningModel {
     required this.reservationId,
     required this.scheduledDate,
     this.assigneeUid,
+    this.assigneeName,
     required this.status,
     required this.checklist,
     required this.photoUrls,
@@ -174,6 +176,7 @@ class CleaningModel {
       reservationId: d['reservationId'] as String? ?? '',
       scheduledDate: (d['scheduledDate'] as Timestamp).toDate(),
       assigneeUid: d['assigneeUid'] as String?,
+      assigneeName: d['assigneeName'] as String?,
       status: d['status'] as String? ?? 'unassigned',
       checklist: items,
       photoUrls: (d['photoUrls'] as List<dynamic>?)?.cast<String>() ?? const [],

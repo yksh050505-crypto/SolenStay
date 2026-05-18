@@ -16,7 +16,7 @@ import {
   REMINDER_HOURS_BEFORE_CHECKOUT,
   UNASSIGNED_CHECK_INTERVAL_MIN,
 } from './lib/constants';
-import { requireAuth } from './lib/helpers';
+import { requireAuth, requireManager } from './lib/helpers';
 
 interface UserDoc {
   name: string;
@@ -224,5 +224,161 @@ export const unregisterFcmToken = onCall({ region: REGION }, async (req) => {
     fcmTokens: admin.firestore.FieldValue.arrayRemove(token),
   });
 
+  return { ok: true };
+});
+
+/**
+ * 매니저 공지사항 작성 (매니저 전용)
+ * @param data { title: string, body: string, target?: 'all' | 'cleaners' | 'admins' }
+ *   - target: 'all' (기본) — 모든 사용자
+ *            'cleaners' — 청소원·실장
+ *            'admins' — 매니저·실장
+ * - notifications 컬렉션에 doc 생성 (앱 알림 페이지에 표시)
+ * - FCM 푸시도 전송
+ */
+export const createManagerNotice = onCall({ region: REGION }, async (req) => {
+  const auth = requireManager(req);
+
+  const { title, body, target } = req.data ?? {};
+  if (typeof title !== 'string' || !title.trim()) {
+    throw new HttpsError('invalid-argument', 'title required');
+  }
+  if (typeof body !== 'string' || !body.trim()) {
+    throw new HttpsError('invalid-argument', 'body required');
+  }
+
+  // 수신 대상 결정
+  let roles: Array<'manager' | 'chief' | 'cleaner'>;
+  switch (target) {
+    case 'cleaners':
+      roles = ['cleaner', 'chief'];
+      break;
+    case 'admins':
+      roles = ['manager', 'chief'];
+      break;
+    case 'all':
+    default:
+      roles = ['cleaner', 'chief', 'manager'];
+      break;
+  }
+
+  const db = admin.firestore();
+  const usersSnap = await db
+    .collection('users')
+    .where('active', '==', true)
+    .where('role', 'in', roles)
+    .get();
+
+  const recipientUids = usersSnap.docs.map((d) => d.id);
+  // 작성자 본인은 제외
+  const filteredUids = recipientUids.filter((uid) => uid !== auth.uid);
+
+  // 토큰 수집
+  const tokens: string[] = [];
+  for (const doc of usersSnap.docs) {
+    if (doc.id === auth.uid) continue;
+    const u = doc.data() as UserDoc;
+    if (Array.isArray(u.fcmTokens) && u.fcmTokens.length > 0) {
+      tokens.push(...u.fcmTokens);
+    }
+  }
+
+  // notifications 문서 생성
+  const notifRef = await db.collection('notifications').add({
+    type: 'manager_notice',
+    title: title.trim(),
+    body: body.trim(),
+    recipientUids: filteredUids,
+    senderUid: auth.uid,
+    target: target ?? 'all',
+    createdAt: admin.firestore.FieldValue.serverTimestamp(),
+    read: false,
+  });
+
+  // FCM 푸시
+  let pushResult = { success: 0, failure: 0 };
+  if (tokens.length > 0) {
+    pushResult = await sendMulticast(
+      tokens,
+      { title: `📢 ${title.trim()}`, body: body.trim() },
+      { type: 'manager_notice', notificationId: notifRef.id },
+    );
+  }
+
+  return {
+    ok: true,
+    notificationId: notifRef.id,
+    recipientCount: filteredUids.length,
+    pushResult,
+  };
+});
+
+/**
+ * 매니저 공지사항 수정 (작성한 매니저만 가능)
+ * @param data { notificationId: string, title?: string, body?: string }
+ */
+export const updateManagerNotice = onCall({ region: REGION }, async (req) => {
+  const auth = requireManager(req);
+  const { notificationId, title, body } = req.data ?? {};
+
+  if (typeof notificationId !== 'string' || !notificationId) {
+    throw new HttpsError('invalid-argument', 'notificationId required');
+  }
+
+  const db = admin.firestore();
+  const ref = db.collection('notifications').doc(notificationId);
+  const doc = await ref.get();
+  if (!doc.exists) {
+    throw new HttpsError('not-found', 'notification not found');
+  }
+  const data = doc.data()!;
+  if (data.type !== 'manager_notice') {
+    throw new HttpsError('failed-precondition', 'only manager_notice can be edited');
+  }
+  if (data.senderUid !== auth.uid) {
+    throw new HttpsError('permission-denied', 'only sender can edit');
+  }
+
+  const updates: Record<string, unknown> = {
+    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+  };
+  if (typeof title === 'string' && title.trim().length > 0) {
+    updates.title = title.trim();
+  }
+  if (typeof body === 'string' && body.trim().length > 0) {
+    updates.body = body.trim();
+  }
+
+  await ref.update(updates);
+  return { ok: true };
+});
+
+/**
+ * 매니저 공지사항 삭제 (작성한 매니저만 가능)
+ * @param data { notificationId: string }
+ */
+export const deleteManagerNotice = onCall({ region: REGION }, async (req) => {
+  const auth = requireManager(req);
+  const { notificationId } = req.data ?? {};
+
+  if (typeof notificationId !== 'string' || !notificationId) {
+    throw new HttpsError('invalid-argument', 'notificationId required');
+  }
+
+  const db = admin.firestore();
+  const ref = db.collection('notifications').doc(notificationId);
+  const doc = await ref.get();
+  if (!doc.exists) {
+    throw new HttpsError('not-found', 'notification not found');
+  }
+  const data = doc.data()!;
+  if (data.type !== 'manager_notice') {
+    throw new HttpsError('failed-precondition', 'only manager_notice can be deleted');
+  }
+  if (data.senderUid !== auth.uid) {
+    throw new HttpsError('permission-denied', 'only sender can delete');
+  }
+
+  await ref.delete();
   return { ok: true };
 });

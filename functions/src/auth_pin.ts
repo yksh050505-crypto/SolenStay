@@ -25,13 +25,25 @@ interface UserDoc {
 }
 
 /**
- * 로그인 화면용: 활성 사용자 이름 목록만 반환 (PIN 정보 없이)
+ * 로그인 화면용: 활성 사용자 이름 목록 반환 (PIN 정보 없이)
  * 인증 없이 호출 가능 (이름 카드 표시용)
+ * @param data { adminOnly?: boolean } — true면 매니저/실장만, false(기본)면 청소원만
  */
-export const listLoginCandidates = onCall({ region: REGION }, async () => {
+export const listLoginCandidates = onCall({ region: REGION }, async (req) => {
+  const adminOnly = (req.data?.adminOnly as boolean | undefined) === true;
   const db = admin.firestore();
   const snap = await db.collection('users').where('active', '==', true).get();
-  const names = Array.from(new Set(snap.docs.map((d) => d.data().name as string)))
+
+  const filtered = snap.docs.filter((d) => {
+    const role = (d.data().role as string | undefined) ?? 'cleaner';
+    // 관리자 모드: manager + chief
+    // 청소원 모드: cleaner + chief (실장은 양쪽 모두 표시 — 직접 청소도 함)
+    return adminOnly
+      ? (role === 'manager' || role === 'chief')
+      : (role === 'cleaner' || role === 'chief');
+  });
+
+  const names = Array.from(new Set(filtered.map((d) => d.data().name as string)))
     .filter((n): n is string => typeof n === 'string' && n.length > 0)
     .sort();
   return { names };

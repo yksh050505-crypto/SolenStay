@@ -44,6 +44,9 @@ export {
   notifyNewReservation,
   registerFcmToken,
   unregisterFcmToken,
+  createManagerNotice,
+  updateManagerNotice,
+  deleteManagerNotice,
 } from './notifications';
 
 // ===== 유지보수 =====

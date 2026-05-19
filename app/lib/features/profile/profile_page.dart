@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
@@ -171,8 +172,9 @@ class ProfilePage extends ConsumerWidget {
           controller: ctrl,
           keyboardType: TextInputType.number,
           obscureText: true,
-          maxLength: 8,
-          decoration: const InputDecoration(hintText: '새 PIN (4~8자리 숫자)'),
+          maxLength: 6,
+          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          decoration: const InputDecoration(hintText: '새 PIN (6자리 숫자)'),
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
@@ -181,6 +183,14 @@ class ProfilePage extends ConsumerWidget {
       ),
     );
     if (result == null || result.isEmpty) return;
+    if (result.length != 6) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PIN은 6자리 숫자여야 합니다')),
+        );
+      }
+      return;
+    }
     try {
       await ref.read(functionsServiceProvider).changePin(result);
       if (context.mounted) {

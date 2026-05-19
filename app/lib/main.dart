@@ -6,13 +6,13 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'firebase_options.dart';
 import 'core/theme.dart';
 import 'app_router.dart';
-
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeDateFormatting('ko_KR', null);
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
+
   runApp(const ProviderScope(child: SolenStayApp()));
 }
 

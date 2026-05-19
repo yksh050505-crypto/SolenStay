@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
@@ -108,6 +109,51 @@ class AdminSettingsPage extends ConsumerWidget {
             const SizedBox(height: 14),
             // 보낸 공지 목록
             _SentNoticesSection(),
+            const SizedBox(height: 24),
+
+            // 달력 일정 관리
+            const _SectionHeader(title: '달력 일정'),
+            const SizedBox(height: 10),
+            Material(
+              color: AppColors.branch1.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                onTap: () => context.push('/admin/reservations'),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.branch1.withOpacity(0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: AppColors.branch1.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.calendar_month_outlined, color: AppColors.branch1, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('예약 일정 추가/수정/삭제', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                            SizedBox(height: 2),
+                            Text('iCal로 들어온 일정 보정 및 수동 예약 관리', style: TextStyle(color: AppColors.muted, fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                      const Icon(Icons.chevron_right, color: AppColors.dim, size: 20),
+                    ],
+                  ),
+                ),
+              ),
+            ),
             const SizedBox(height: 24),
 
             // 사용자 관리 섹션
@@ -745,12 +791,12 @@ class _SentNoticeCard extends ConsumerWidget {
   }
 }
 
-class _UserRow extends StatelessWidget {
+class _UserRow extends ConsumerWidget {
   final UserModel user;
   const _UserRow({required this.user});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final roleLabel = user.isManager
         ? '매니저'
         : user.isChief
@@ -804,6 +850,21 @@ class _UserRow extends StatelessWidget {
               ],
             ),
           ),
+          // PIN 초기화 버튼
+          OutlinedButton.icon(
+            onPressed: () => _showResetPinDialog(context, ref),
+            icon: const Icon(Icons.lock_reset, size: 14),
+            label: const Text('PIN 초기화'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.warn,
+              side: const BorderSide(color: AppColors.warn, width: 1),
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+              minimumSize: const Size(0, 32),
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ),
+          const SizedBox(width: 8),
           Container(
             width: 8,
             height: 8,
@@ -815,5 +876,60 @@ class _UserRow extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _showResetPinDialog(BuildContext context, WidgetRef ref) async {
+    final pinCtrl = TextEditingController(text: '000000');
+    final newPin = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${user.name} PIN 초기화'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('새 PIN을 입력하세요 (4~8자리).\n사용자가 다음 로그인 시 변경하도록 안내해주세요.',
+                style: TextStyle(fontSize: 12, color: AppColors.muted)),
+            const SizedBox(height: 10),
+            TextField(
+              controller: pinCtrl,
+              keyboardType: TextInputType.number,
+              maxLength: 8,
+              inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+              decoration: const InputDecoration(labelText: '새 PIN'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, pinCtrl.text.trim()),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.warn),
+            child: const Text('초기화'),
+          ),
+        ],
+      ),
+    );
+    if (newPin == null || newPin.isEmpty) return;
+    if (newPin.length < 4 || newPin.length > 8) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PIN은 4~8자리 숫자여야 합니다')),
+        );
+      }
+      return;
+    }
+    try {
+      await ref.read(functionsServiceProvider).updateUserPin(uid: user.uid, pin: newPin);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${user.name} PIN이 $newPin 으로 초기화되었습니다'), backgroundColor: AppColors.ok),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('초기화 실패: $e')));
+      }
+    }
   }
 }

@@ -1,5 +1,7 @@
 import 'dart:typed_data';
 
+import 'package:cached_network_image/cached_network_image.dart';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -186,6 +188,15 @@ class _CompletionPageState extends ConsumerState<CompletionPage> {
   }
 
   Future<void> _submit(CleaningModel cleaning) async {
+    if (_photos.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('사진을 업로드하여 주시기 바랍니다'),
+          backgroundColor: AppColors.warn,
+        ),
+      );
+      return;
+    }
     setState(() => _submitting = true);
     try {
       final List<String> photoUrls = [];
@@ -224,15 +235,28 @@ class _CompletionPageState extends ConsumerState<CompletionPage> {
 
 // ===== 요약 카드 =====
 
-class _SummaryCard extends StatelessWidget {
+class _SummaryCard extends ConsumerWidget {
   final BranchModel branch;
   final CleaningModel cleaning;
   final ReservationModel? reservation;
   final UserModel? user;
   const _SummaryCard({required this.branch, required this.cleaning, required this.reservation, required this.user});
 
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    // 다음 체크인 게스트 — 청소 예정일에 입실 시작하는 예약 (같은 호점)
+    final allRes = ref.watch(upcomingReservationsProvider).valueOrNull ?? const <ReservationModel>[];
+    ReservationModel? nextRes;
+    for (final r in allRes) {
+      if (r.branchId == cleaning.branchId && _sameDay(r.checkIn, cleaning.scheduledDate)) {
+        nextRes = r;
+        break;
+      }
+    }
+
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
@@ -243,9 +267,11 @@ class _SummaryCard extends StatelessWidget {
         children: [
           _row('호점', branch.name),
           _divider(),
-          _row('이전 게스트', reservation != null ? '${reservation!.guestName} · 👤 ${reservation!.guestCount}인' : '-'),
-          _divider(),
-          _row('다음 체크인', reservation != null ? '${reservation!.guestName} · 👤 ${reservation!.guestCount}인' : '-', valueColor: AppColors.warn),
+          _row(
+            '다음 체크인',
+            nextRes != null ? '${nextRes.guestName} · 👤 ${nextRes.guestCount}인' : '없음',
+            valueColor: nextRes != null ? AppColors.warn : AppColors.dim,
+          ),
           _divider(),
           _row('담당', user?.name ?? '-', last: true),
         ],
@@ -333,17 +359,30 @@ class _PhotoGrid extends StatelessWidget {
 
 // ===== 완료된 작업 보기 =====
 
-class _CompletedView extends StatelessWidget {
+class _CompletedView extends ConsumerWidget {
   final CleaningModel cleaning;
   final List<BranchModel> branches;
   const _CompletedView({required this.cleaning, required this.branches});
 
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final branch = branches.firstWhere(
       (b) => b.id == cleaning.branchId,
       orElse: () => BranchModel(id: cleaning.branchId, name: cleaning.branchId, rooms: 0, maxOccupancy: 0, color: '#64748B', iCalSourceUrl: '', active: true),
     );
+    final color = AppColors.branchColor(cleaning.branchId);
+
+    // 완료 시 저장된 스냅샷 우선 사용 (고정 정보)
+    final snap = cleaning.nextGuestSnapshot;
+    String? nextName;
+    int? nextCount;
+    if (snap != null && (snap['guestName'] as String?)?.isNotEmpty == true) {
+      nextName = snap['guestName'] as String;
+      nextCount = (snap['guestCount'] as num?)?.toInt();
+    }
 
     return ListView(
       padding: const EdgeInsets.all(18),
@@ -369,6 +408,32 @@ class _CompletedView extends StatelessWidget {
         ),
         const SizedBox(height: 16),
 
+        // 게스트/담당 정보
+        Container(
+          decoration: BoxDecoration(
+            color: AppColors.panel,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Column(
+            children: [
+              _infoRow('호점', Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(color: color.withOpacity(0.15), borderRadius: BorderRadius.circular(999)),
+                child: Text(branch.name, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800)),
+              )),
+              _divider(),
+              _infoRow('다음 체크인', _guestSnapshotText(nextName, nextCount, fallback: '없음', color: color)),
+              _divider(),
+              _infoRow('담당', Text(
+                cleaning.assigneeName?.isNotEmpty == true ? cleaning.assigneeName! : '미상',
+                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.text),
+              )),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+
         if (cleaning.photoUrls.isNotEmpty) ...[
           const Text('첨부 사진', style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
           const SizedBox(height: 8),
@@ -384,7 +449,12 @@ class _CompletedView extends StatelessWidget {
             itemCount: cleaning.photoUrls.length,
             itemBuilder: (_, i) => ClipRRect(
               borderRadius: BorderRadius.circular(10),
-              child: Image.network(cleaning.photoUrls[i], fit: BoxFit.cover),
+              child: CachedNetworkImage(
+                imageUrl: cleaning.photoUrls[i],
+                fit: BoxFit.cover,
+                placeholder: (_, __) => Container(color: AppColors.line),
+                errorWidget: (_, __, ___) => Container(color: AppColors.line, child: const Icon(Icons.broken_image_outlined, color: AppColors.dim)),
+              ),
             ),
           ),
           const SizedBox(height: 16),
@@ -403,6 +473,41 @@ class _CompletedView extends StatelessWidget {
             ),
             child: Text(cleaning.memo, style: const TextStyle(fontSize: 13, height: 1.5)),
           ),
+        ],
+      ],
+    );
+  }
+
+  Widget _infoRow(String label, Widget value) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 90,
+              child: Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+            ),
+            Expanded(child: Align(alignment: Alignment.centerRight, child: value)),
+          ],
+        ),
+      );
+
+  Widget _divider() => Container(height: 1, color: AppColors.line);
+
+  Widget _guestSnapshotText(String? name, int? count, {required String fallback, required Color color}) {
+    if (name == null || name.isEmpty) {
+      return Text(fallback, style: const TextStyle(fontSize: 13, color: AppColors.dim));
+    }
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
+        if (count != null) ...[
+          const SizedBox(width: 6),
+          const Text('·', style: TextStyle(color: AppColors.dim, fontSize: 12)),
+          const SizedBox(width: 4),
+          const Icon(Icons.person, size: 12, color: AppColors.muted),
+          const SizedBox(width: 2),
+          Text('$count인', style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w600)),
         ],
       ],
     );

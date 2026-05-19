@@ -135,11 +135,15 @@ export const releaseCleaning = onCall({ region: REGION }, async (req) => {
     if (data.status === 'in_progress' || data.status === 'completed') {
       throw new HttpsError('failed-precondition', '진행중/완료 청소는 취소 불가');
     }
+    // 체크리스트 초기화 — 다음 담당자가 처음부터 시작하도록
+    const resetChecklist = ((data.checklist as Array<{ category: string; text: string; checked?: boolean }> | undefined) ?? [])
+      .map((i) => ({ ...i, checked: false }));
     tx.update(ref, {
       assigneeUid: null,
       assigneeName: null,
       assignedAt: null,
       status: 'unassigned',
+      checklist: resetChecklist,
     });
   });
 
@@ -164,13 +168,28 @@ export const forceAssignCleaning = onCall({ region: REGION }, async (req) => {
   }
   const userName = (userDoc.data()?.name as string | undefined) ?? '';
 
-  await db.collection('cleanings').doc(cleaningId).update({
+  const ref = db.collection('cleanings').doc(cleaningId);
+  const cleaningDoc = await ref.get();
+  if (!cleaningDoc.exists) {
+    throw new HttpsError('not-found', 'cleaning not found');
+  }
+  const cleaningData = cleaningDoc.data()!;
+  // 다른 담당자로 강제 재할당 시 체크리스트 초기화 (기존 진행 내용 제거)
+  const isReassign = cleaningData.assigneeUid && cleaningData.assigneeUid !== uid;
+  const updates: Record<string, unknown> = {
     assigneeUid: uid,
     assigneeName: userName,
     assignedAt: admin.firestore.FieldValue.serverTimestamp(),
     status: 'assigned',
     forceAssigned: true,
-  });
+  };
+  if (isReassign) {
+    const resetChecklist = ((cleaningData.checklist as Array<{ category: string; text: string; checked?: boolean }> | undefined) ?? [])
+      .map((i) => ({ ...i, checked: false }));
+    updates.checklist = resetChecklist;
+  }
+
+  await ref.update(updates);
 
   return { ok: true };
 });
@@ -204,6 +223,43 @@ export const completeCleaning = onCall({ region: REGION }, async (req) => {
   const db = admin.firestore();
   const ref = db.collection('cleanings').doc(cleaningId);
 
+  // 다음 게스트 스냅샷 — 완료 시점에 1회만 캡처
+  const cleaningSnap = await ref.get();
+  if (!cleaningSnap.exists) {
+    throw new HttpsError('not-found', 'cleaning not found');
+  }
+  const cleaningData = cleaningSnap.data()!;
+  const branchId = cleaningData.branchId as string;
+  const scheduledDate = cleaningData.scheduledDate as admin.firestore.Timestamp;
+
+  // checkIn == scheduledDate (같은 날) 인 다른 예약 = 다음 게스트
+  const dayStart = new Date(scheduledDate.toDate());
+  dayStart.setHours(0, 0, 0, 0);
+  const dayEnd = new Date(dayStart);
+  dayEnd.setDate(dayEnd.getDate() + 1);
+
+  const nextResSnap = await db
+    .collection('reservations')
+    .where('branchId', '==', branchId)
+    .where('checkIn', '>=', admin.firestore.Timestamp.fromDate(dayStart))
+    .where('checkIn', '<', admin.firestore.Timestamp.fromDate(dayEnd))
+    .limit(1)
+    .get();
+
+  let nextGuestSnapshot: admin.firestore.FieldValue | Record<string, unknown> =
+    admin.firestore.FieldValue.delete();
+  if (!nextResSnap.empty) {
+    const r = nextResSnap.docs[0].data();
+    nextGuestSnapshot = {
+      reservationId: nextResSnap.docs[0].id,
+      guestName: (r.guestName as string) ?? '',
+      guestCount: (r.guestCount as number) ?? 0,
+      ota: (r.ota as string) ?? 'unknown',
+      checkIn: r.checkIn,
+      checkOut: r.checkOut,
+    };
+  }
+
   await db.runTransaction(async (tx) => {
     const doc = await tx.get(ref);
     if (!doc.exists) throw new HttpsError('not-found', 'cleaning not found');
@@ -221,6 +277,7 @@ export const completeCleaning = onCall({ region: REGION }, async (req) => {
       memo: typeof memo === 'string' ? memo : '',
       status: 'completed',
       completedAt: admin.firestore.FieldValue.serverTimestamp(),
+      nextGuestSnapshot,
     });
   });
 

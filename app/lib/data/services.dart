@@ -88,9 +88,9 @@ final upcomingReservationsProvider = StreamProvider<List<ReservationModel>>((ref
   if (user == null) return Stream.value(const <ReservationModel>[]);
 
   final now = DateTime.now();
-  // 오늘 - 7일 ~ 오늘 + 90일 범위의 체크아웃 예약 (현재 진행 중 예약도 포함하기 위해 과거 7일)
+  // 오늘 - 7일 ~ 오늘 + 60일 (캘린더 현재월 + 다음월 표시에 충분)
   final start = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 7));
-  final end = start.add(const Duration(days: 120));
+  final end = start.add(const Duration(days: 67));
 
   return ref
       .watch(firestoreProvider)
@@ -103,6 +103,25 @@ final upcomingReservationsProvider = StreamProvider<List<ReservationModel>>((ref
 });
 
 // ===== 매니저용 — 미지정 청소 =====
+/// 연간 미배정 청소 카운트 (오늘부터 1년 이내)
+final unassignedYearCountProvider = StreamProvider<int>((ref) {
+  final user = ref.watch(firebaseUserProvider).value;
+  if (user == null) return Stream.value(0);
+
+  final now = DateTime.now();
+  final start = DateTime(now.year, now.month, now.day);
+  final end = start.add(const Duration(days: 365));
+
+  return ref
+      .watch(firestoreProvider)
+      .collection('cleanings')
+      .where('status', isEqualTo: 'unassigned')
+      .where('scheduledDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+      .where('scheduledDate', isLessThan: Timestamp.fromDate(end))
+      .snapshots()
+      .map((s) => s.size);
+});
+
 final unassignedCleaningsProvider = StreamProvider<List<CleaningModel>>((ref) {
   final user = ref.watch(firebaseUserProvider).value;
   if (user == null) return Stream.value(const <CleaningModel>[]);
@@ -140,6 +159,10 @@ class FunctionsService {
 
   Future<void> changePin(String newPin) async {
     await _fn.httpsCallable('changePin').call({'newPin': newPin});
+  }
+
+  Future<void> updateUserPin({required String uid, required String pin}) async {
+    await _fn.httpsCallable('updateUserPin').call({'uid': uid, 'pin': pin});
   }
 
   Future<void> claimCleaning(String cleaningId) async {

@@ -1,11 +1,11 @@
 {
-    "name": "solenstay",
-    "short_name": "solenstay",
+    "name": "SolenStay",
+    "short_name": "SolenStay",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A new Flutter project.",
+    "background_color": "#3B2516",
+    "theme_color": "#3B2516",
+    "description": "SolenStay - 숙소 청소 관리",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

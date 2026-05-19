@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,6 +20,21 @@ final allUsersProvider = StreamProvider<List<UserModel>>((ref) {
       .where('active', isEqualTo: true)
       .snapshots()
       .map((s) => s.docs.map(UserModel.fromDoc).toList()..sort((a, b) => a.name.compareTo(b.name)));
+});
+
+/// 완료 보고 Provider — 최근 완료된 청소 전체 (메모 유무 무관)
+final recentCompletedProvider = StreamProvider<List<CleaningModel>>((ref) {
+  final authUser = ref.watch(firebaseUserProvider).value;
+  if (authUser == null) return Stream.value(const <CleaningModel>[]);
+
+  return ref
+      .watch(firestoreProvider)
+      .collection('cleanings')
+      .where('status', isEqualTo: 'completed')
+      .orderBy('completedAt', descending: true)
+      .limit(20)
+      .snapshots()
+      .map((s) => s.docs.map(CleaningModel.fromDoc).toList());
 });
 
 /// 최근 메모(특이사항) Provider — 완료된 청소 중 memo가 있는 것
@@ -82,6 +98,7 @@ class ManagerDashboardPage extends ConsumerWidget {
     final unassigned = ref.watch(unassignedCleaningsProvider);
     final branches = ref.watch(branchesProvider).value ?? const <BranchModel>[];
     final notes = ref.watch(recentNotesProvider);
+    final completed = ref.watch(recentCompletedProvider);
 
     return Scaffold(
       appBar: AppBar(
@@ -120,6 +137,23 @@ class ManagerDashboardPage extends ConsumerWidget {
                 todayList: todayList,
                 branches: branches,
               ),
+            ),
+            const SizedBox(height: 18),
+
+            // 1.5) 완료 보고 — 최근 청소 완료 내역 (사진 포함)
+            _SectionHeader(title: '완료 보고'),
+            const SizedBox(height: 10),
+            completed.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (e, _) => Text('오류: $e', style: const TextStyle(color: AppColors.danger)),
+              data: (list) {
+                if (list.isEmpty) {
+                  return _emptyBox('아직 완료 보고가 없습니다');
+                }
+                return Column(
+                  children: list.take(10).map((c) => _CompletedReportCard(cleaning: c, branches: branches)).toList(),
+                );
+              },
             ),
             const SizedBox(height: 18),
 
@@ -746,6 +780,140 @@ class _SectionHeader extends StatelessWidget {
         if (actionText != null && actionText!.isNotEmpty)
           Text(actionText!, style: const TextStyle(color: AppColors.branch1, fontSize: 12, fontWeight: FontWeight.w600)),
       ],
+    );
+  }
+}
+
+// ===== 완료 보고 카드 =====
+
+class _CompletedReportCard extends StatelessWidget {
+  final CleaningModel cleaning;
+  final List<BranchModel> branches;
+  const _CompletedReportCard({required this.cleaning, required this.branches});
+
+  @override
+  Widget build(BuildContext context) {
+    final branch = branches.firstWhere(
+      (b) => b.id == cleaning.branchId,
+      orElse: () => BranchModel(id: cleaning.branchId, name: cleaning.branchId, rooms: 0, maxOccupancy: 0, color: '#64748B', iCalSourceUrl: '', active: true),
+    );
+    final branchColor = AppColors.branchColor(cleaning.branchId);
+    final assigneeName = cleaning.assigneeName?.isNotEmpty == true ? cleaning.assigneeName! : '청소원';
+    final completedAt = cleaning.completedAt;
+    final completedStr = completedAt != null
+        ? DateFormat('M/d (E) HH:mm', 'ko').format(completedAt)
+        : DateFormat('M/d (E)', 'ko').format(cleaning.scheduledDate);
+    final hasMemo = cleaning.memo.isNotEmpty;
+    final photoCount = cleaning.photoUrls.length;
+
+    return Material(
+      color: AppColors.panel,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () => context.push('/cleaning/${cleaning.id}/complete'),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.line),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // 상단: 호점 배지 + 완료 정보
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  Container(
+                    constraints: const BoxConstraints(minWidth: 52),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: branchColor.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      branch.name,
+                      style: TextStyle(color: branchColor, fontSize: 11, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.check_circle, size: 14, color: AppColors.ok),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      '$assigneeName · $completedStr',
+                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                      maxLines: 1, overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, color: AppColors.dim, size: 18),
+                ],
+              ),
+              // 사진 썸네일 영역
+              if (photoCount > 0) ...[
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 84,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: cleaning.photoUrls.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 6),
+                    itemBuilder: (_, i) => ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: CachedNetworkImage(
+                        imageUrl: cleaning.photoUrls[i],
+                        width: 84,
+                        height: 84,
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => Container(
+                          width: 84, height: 84, color: AppColors.line,
+                          alignment: Alignment.center,
+                          child: const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
+                        ),
+                        errorWidget: (_, __, ___) => Container(
+                          width: 84, height: 84, color: AppColors.line,
+                          alignment: Alignment.center,
+                          child: const Icon(Icons.broken_image_outlined, size: 20, color: AppColors.dim),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+              // 메모
+              if (hasMemo) ...[
+                const SizedBox(height: 8),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.warn.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.warn.withOpacity(0.2)),
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Icon(Icons.sticky_note_2_outlined, size: 14, color: AppColors.warn),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: Text(
+                          cleaning.memo,
+                          style: const TextStyle(fontSize: 12, color: AppColors.text, height: 1.4),
+                          maxLines: 3, overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
     );
   }
 }

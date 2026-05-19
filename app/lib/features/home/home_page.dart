@@ -20,7 +20,6 @@ class HomePage extends ConsumerWidget {
     // 다가오는 청소 = 오늘부터 30일 이내, 체크아웃 날짜순
     final cleaningsAsync = ref.watch(upcomingCleaningsProvider);
     // 통계용: 오늘 청소만 별도
-    final todayAsync = ref.watch(todayCleaningsProvider);
     final branchesAsync = ref.watch(branchesProvider);
     final branches = branchesAsync.valueOrNull ?? const <BranchModel>[];
 
@@ -56,26 +55,11 @@ class HomePage extends ConsumerWidget {
               ),
               const SizedBox(height: 18),
 
-              // 통계 카드 — 오늘 청소만 기준
-              todayAsync.when(
-                loading: () => const Padding(padding: EdgeInsets.all(20), child: Center(child: CircularProgressIndicator())),
-                error: (e, _) => Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.danger.withOpacity(0.08),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text('오류: $e', style: const TextStyle(color: AppColors.danger, fontSize: 12)),
-                ),
-                data: (list) => _StatsRow(list: list),
-              ),
+              // 미배정 청소 배너 (연간)
+              const _UnassignedBanner(),
               const SizedBox(height: 18),
 
-              // 섹션 타이틀
-              const _SectionTitle('다가오는 청소'),
-              const SizedBox(height: 10),
-
-              // 호점별 청소 목록
+              // 매니저: 호점별 / 실장·청소원: 타임라인
               Expanded(
                 child: branchesAsync.when(
                   loading: () => const Center(child: CircularProgressIndicator()),
@@ -105,10 +89,30 @@ class HomePage extends ConsumerWidget {
                         ),
                       );
                     }
-                    return _BranchList(
+                    final isManager = user?.isManager ?? false;
+                    if (isManager) {
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const _SectionTitle('다가오는 청소'),
+                          const SizedBox(height: 10),
+                          Expanded(
+                            child: _BranchList(
+                              branches: loadedBranches,
+                              cleanings: cleaningsAsync.valueOrNull ?? const <CleaningModel>[],
+                              myUid: user?.uid,
+                            ),
+                          ),
+                        ],
+                      );
+                    }
+                    final allCleanings = cleaningsAsync.valueOrNull ?? const <CleaningModel>[];
+                    final myCleanings = user == null
+                        ? const <CleaningModel>[]
+                        : allCleanings.where((c) => c.assigneeUid == user.uid).toList();
+                    return _TimelineView(
                       branches: loadedBranches,
-                      cleanings: cleaningsAsync.valueOrNull ?? const <CleaningModel>[],
-                      myUid: user?.uid,
+                      cleanings: myCleanings,
                     );
                   },
                 ),
@@ -117,6 +121,223 @@ class HomePage extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// 실장/청소원 전용 — 오늘의 청소 / 다가오는 청소(7일 이내)
+class _TimelineView extends ConsumerWidget {
+  final List<BranchModel> branches;
+  final List<CleaningModel> cleanings; // 이미 scheduledDate 오름차순
+  const _TimelineView({required this.branches, required this.cleanings});
+
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reservations = ref.watch(upcomingReservationsProvider).valueOrNull ?? const <ReservationModel>[];
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final weekEnd = today.add(const Duration(days: 7));
+
+    // 입실 게스트 매칭: cleaning.scheduledDate == reservation.checkIn (같은 호점)
+    ReservationModel? incomingOf(CleaningModel c) {
+      for (final r in reservations) {
+        if (r.branchId == c.branchId && _sameDay(r.checkIn, c.scheduledDate)) {
+          return r;
+        }
+      }
+      return null;
+    }
+
+    // 오늘 / 다가오는(내일 ~ +7일) 분리
+    final todays = <_TaskItem>[];
+    final upcoming = <_TaskItem>[];
+    for (final c in cleanings) {
+      final d = DateTime(c.scheduledDate.year, c.scheduledDate.month, c.scheduledDate.day);
+      if (d.isBefore(today)) continue;
+      if (d.isAfter(weekEnd)) break; // cleanings already sorted asc
+      final item = _TaskItem(cleaning: c, incoming: incomingOf(c));
+      if (_sameDay(d, today)) {
+        todays.add(item);
+      } else {
+        upcoming.add(item);
+      }
+    }
+
+    return ListView(
+      padding: EdgeInsets.zero,
+      children: [
+        const _SectionTitle('오늘의 청소'),
+        const SizedBox(height: 10),
+        if (todays.isEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            decoration: BoxDecoration(
+              color: AppColors.panel,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.line),
+            ),
+            child: const Center(
+              child: Text('오늘 청소가 없습니다', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+            ),
+          )
+        else
+          ...todays.map((t) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _CleaningTaskCard(item: t, branches: branches),
+              )),
+        const SizedBox(height: 22),
+        const _SectionTitle('다가오는 청소'),
+        const SizedBox(height: 10),
+        if (upcoming.isEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            decoration: BoxDecoration(
+              color: AppColors.panel,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.line),
+            ),
+            child: const Center(
+              child: Text('7일 이내 예정된 청소가 없습니다', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+            ),
+          )
+        else
+          ...upcoming.map((t) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _CleaningTaskCard(item: t, branches: branches),
+              )),
+        const SizedBox(height: 20),
+      ],
+    );
+  }
+}
+
+class _TaskItem {
+  final CleaningModel cleaning;
+  final ReservationModel? incoming; // 입실 게스트 (있으면)
+  _TaskItem({required this.cleaning, required this.incoming});
+}
+
+/// 청소 카드 — 호점 색상 + 입실 게스트 정보 + 실제 날짜
+class _CleaningTaskCard extends ConsumerWidget {
+  final _TaskItem item;
+  final List<BranchModel> branches;
+  const _CleaningTaskCard({required this.item, required this.branches});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final c = item.cleaning;
+    final user = ref.watch(currentUserProvider).valueOrNull;
+    final isMine = user != null && c.assigneeUid == user.uid;
+    final branch = branches.firstWhere(
+      (b) => b.id == c.branchId,
+      orElse: () => BranchModel(id: c.branchId, name: c.branchId, rooms: 0, maxOccupancy: 0, color: '#64748B', iCalSourceUrl: '', active: true),
+    );
+    final color = AppColors.branchColor(c.branchId);
+    final dateStr = DateFormat('M/d (E)', 'ko').format(c.scheduledDate);
+
+    final incoming = item.incoming;
+    final fallbackRes = incoming == null ? ref.watch(reservationProvider(c.reservationId)).valueOrNull : null;
+    final guest = incoming ?? fallbackRes;
+
+    return Material(
+      color: AppColors.panel,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: () => context.push('/cleaning/${c.id}'),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppColors.line),
+          ),
+          clipBehavior: Clip.antiAlias,
+          child: Row(
+            children: [
+              // 호점 컬러바
+              Container(width: 5, constraints: const BoxConstraints(minHeight: 60), color: color),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Row(
+                        children: [
+                          // 호점 배지 (색상)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: color.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(999),
+                            ),
+                            child: Text(
+                              branch.name,
+                              style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          // 실제 날짜
+                          Text(
+                            dateStr,
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.text),
+                          ),
+                          const Spacer(),
+                          _statusPill(c, isMine),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      if (guest != null) ...[
+                        Text(
+                          '${guest.guestName} · 👤 ${guest.guestCount}인',
+                          style: const TextStyle(fontSize: 13, color: AppColors.text, fontWeight: FontWeight.w600),
+                          maxLines: 1, overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          incoming != null ? '신규 입실 게스트' : '체크아웃 게스트',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: incoming != null ? color : AppColors.muted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ] else
+                        Text(
+                          '게스트 정보 없음',
+                          style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              const Padding(
+                padding: EdgeInsets.only(right: 8),
+                child: Icon(Icons.chevron_right, color: AppColors.dim, size: 18),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statusPill(CleaningModel c, bool isMine) {
+    String text; Color color;
+    if (c.isCompleted) { text = '✓ 완료'; color = AppColors.ok; }
+    else if (c.isUnassigned) { text = '미지정'; color = AppColors.warn; }
+    else if (isMine) { text = '내 작업'; color = AppColors.branch1; }
+    else { text = '배정됨'; color = AppColors.muted; }
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(text, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700)),
     );
   }
 }
@@ -130,17 +351,12 @@ class _BranchList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 내가 담당한 청소만 필터
-    final myCleanings = myUid == null
-        ? const <CleaningModel>[]
-        : cleanings.where((c) => c.assigneeUid == myUid).toList();
-
-    // 호점별로 가장 가까운 내 청소 1건씩
+    // 호점별로 가장 가까운 청소 1건씩 (배정 여부 무관)
     final Map<String, CleaningModel?> nearestByBranch = {};
     for (final b in branches) {
       nearestByBranch[b.id] = null;
     }
-    for (final c in myCleanings) {
+    for (final c in cleanings) {
       if (nearestByBranch.containsKey(c.branchId) && nearestByBranch[c.branchId] == null) {
         nearestByBranch[c.branchId] = c;
       }
@@ -226,6 +442,79 @@ class _SectionTitle extends StatelessWidget {
         fontSize: 12,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.5,
+      ),
+    );
+  }
+}
+
+/// 미배정 청소 카운트 배너 — 클릭 시 캘린더로 이동
+class _UnassignedBanner extends ConsumerWidget {
+  const _UnassignedBanner();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final countAsync = ref.watch(unassignedYearCountProvider);
+    final count = countAsync.valueOrNull ?? 0;
+    final hasAny = count > 0;
+    final color = hasAny ? AppColors.warn : AppColors.ok;
+
+    return Material(
+      color: color.withOpacity(0.08),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: () => context.push('/calendar'),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: color.withOpacity(0.25)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 40, height: 40,
+                decoration: BoxDecoration(
+                  color: color.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  hasAny ? Icons.warning_amber_rounded : Icons.check_circle_outline,
+                  color: color, size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      '미배정 청소',
+                      style: TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          countAsync.isLoading ? '…' : '$count',
+                          style: TextStyle(color: color, fontSize: 24, fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          '건 (1년 이내)',
+                          style: const TextStyle(color: AppColors.text, fontSize: 13, fontWeight: FontWeight.w600),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.chevron_right, color: color, size: 22),
+            ],
+          ),
+        ),
       ),
     );
   }

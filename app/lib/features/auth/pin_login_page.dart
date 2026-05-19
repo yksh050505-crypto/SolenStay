@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 
 import '../../core/theme.dart';
+import '../../core/fcm.dart';
+import '../../core/error_messages.dart';
 import '../../data/services.dart';
 
 /// ① PIN 로그인 — 이름 선택 + 6자리 PIN 입력 (네이티브 키패드 사용)
@@ -21,6 +23,19 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
   bool _loading = false;
   String? _error;
   bool _adminMode = false; // false: 청소원 / true: 매니저·실장
+  Future<List<String>>? _candidatesFuture; // 캐시: _adminMode 바뀔 때만 재호출
+
+  @override
+  void initState() {
+    super.initState();
+    _candidatesFuture = ref.read(functionsServiceProvider).listLoginCandidates(adminOnly: _adminMode);
+  }
+
+  void _reloadCandidates() {
+    setState(() {
+      _candidatesFuture = ref.read(functionsServiceProvider).listLoginCandidates(adminOnly: _adminMode);
+    });
+  }
 
   @override
   void dispose() {
@@ -50,11 +65,12 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
       final cred = await FirebaseAuth.instance.signInWithCustomToken(token);
       // 토큰 강제 새로고침 - Custom Claims가 Firestore 요청에 즉시 반영되도록
       await cred.user?.getIdTokenResult(true);
+      // FCM 토큰 등록 (권한 요청 + 서버에 토큰 저장)
+      // ignore: unawaited_futures
+      initFcmForUser(fn);
     } catch (e) {
       setState(() {
-        _error = e.toString().contains('invalid name or pin')
-            ? '이름 또는 PIN이 올바르지 않습니다'
-            : '로그인 실패';
+        _error = friendlyError(e);
         _pinCtrl.clear();
       });
     } finally {
@@ -173,26 +189,34 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                       children: [
                         Expanded(
                           child: _modeButton(
-                            label: '청소원',
+                            label: '직원',
                             selected: !_adminMode,
-                            onTap: () => setState(() {
-                              _adminMode = false;
-                              _selectedName = null;
-                              _pinCtrl.clear();
-                              _error = null;
-                            }),
+                            onTap: () {
+                              if (_adminMode == false) return;
+                              setState(() {
+                                _adminMode = false;
+                                _selectedName = null;
+                                _pinCtrl.clear();
+                                _error = null;
+                              });
+                              _reloadCandidates();
+                            },
                           ),
                         ),
                         Expanded(
                           child: _modeButton(
                             label: '관리자',
                             selected: _adminMode,
-                            onTap: () => setState(() {
-                              _adminMode = true;
-                              _selectedName = null;
-                              _pinCtrl.clear();
-                              _error = null;
-                            }),
+                            onTap: () {
+                              if (_adminMode == true) return;
+                              setState(() {
+                                _adminMode = true;
+                                _selectedName = null;
+                                _pinCtrl.clear();
+                                _error = null;
+                              });
+                              _reloadCandidates();
+                            },
                           ),
                         ),
                       ],
@@ -200,13 +224,10 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                   ),
                   const SizedBox(height: 18),
 
-                  // 이름 카드
-                  Consumer(builder: (context, ref, _) {
-                    return FutureBuilder<List<String>>(
-                      // _adminMode 변화 시 새로 fetch되도록 key 동기화
-                      key: ValueKey(_adminMode),
-                      future: ref.read(functionsServiceProvider).listLoginCandidates(adminOnly: _adminMode),
-                      builder: (context, snap) {
+                  // 이름 카드 (캐시된 future 사용 — 매 빌드 재호출 방지)
+                  FutureBuilder<List<String>>(
+                    future: _candidatesFuture,
+                    builder: (context, snap) {
                         if (snap.connectionState != ConnectionState.done) {
                           return const Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator());
                         }
@@ -303,8 +324,7 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                           ],
                         );
                       },
-                    );
-                  }),
+                    ),
 
                   const SizedBox(height: 24),
 

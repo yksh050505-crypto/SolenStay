@@ -22,7 +22,7 @@ service cloud.firestore {
 
     match /reservations/{id} {
       allow read: if isAuth();
-      allow write: if false;
+      allow write: if isManager();
     }
 
     match /cleanings/{id} {
@@ -32,7 +32,7 @@ service cloud.firestore {
         request.auth.uid == resource.data.assigneeUid ||
         isChiefOrManager()
       );
-      allow create, delete: if false;
+      allow create, delete: if isManager();
     }
 
     match /checklistTemplates/{branchId} {

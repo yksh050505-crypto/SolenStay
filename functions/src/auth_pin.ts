@@ -29,7 +29,7 @@ interface UserDoc {
  * 인증 없이 호출 가능 (이름 카드 표시용)
  * @param data { adminOnly?: boolean } — true면 매니저/실장만, false(기본)면 청소원만
  */
-export const listLoginCandidates = onCall({ region: REGION }, async (req) => {
+export const listLoginCandidates = onCall({ region: REGION, minInstances: 1 }, async (req) => {
   const adminOnly = (req.data?.adminOnly as boolean | undefined) === true;
   const db = admin.firestore();
   const snap = await db.collection('users').where('active', '==', true).get();
@@ -39,7 +39,7 @@ export const listLoginCandidates = onCall({ region: REGION }, async (req) => {
     // 관리자 모드: manager + chief
     // 청소원 모드: cleaner + chief (실장은 양쪽 모두 표시 — 직접 청소도 함)
     return adminOnly
-      ? (role === 'manager' || role === 'chief')
+      ? (role === 'manager')
       : (role === 'cleaner' || role === 'chief');
   });
 
@@ -53,7 +53,7 @@ export const listLoginCandidates = onCall({ region: REGION }, async (req) => {
  * 청소원/실장/매니저가 이름+PIN으로 로그인
  * @returns { token: string, role: string, name: string, pinChanged: boolean }
  */
-export const signInWithPin = onCall({ region: REGION }, async (req) => {
+export const signInWithPin = onCall({ region: REGION, minInstances: 1 }, async (req) => {
   const { name, pin } = req.data ?? {};
 
   if (typeof name !== 'string' || !name.trim()) {
@@ -95,8 +95,8 @@ export const changePin = onCall({ region: REGION }, async (req) => {
   const auth = requireAuth(req);
   const { newPin } = req.data ?? {};
 
-  if (typeof newPin !== 'string' || !PIN_REGEX.test(newPin)) {
-    throw new HttpsError('invalid-argument', 'newPin must be 4-8 digits');
+  if (typeof newPin !== 'string' || !/^\d{6}$/.test(newPin)) {
+    throw new HttpsError('invalid-argument', 'newPin must be exactly 6 digits');
   }
 
   // 너무 단순한 PIN 거부 (000000 같은 초기값은 변경 후 재사용 불가)

@@ -12,9 +12,11 @@ import 'features/profile/profile_page.dart';
 import 'features/manager/manager_dashboard_page.dart';
 import 'features/notifications/notifications_page.dart';
 import 'features/admin/admin_settings_page.dart';
+import 'features/admin/reservation_management_page.dart';
+import 'core/app_navigator.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
-  return GoRouter(
+  final router = GoRouter(
     initialLocation: '/',
     refreshListenable: _AuthRefresher(ref),
     redirect: (context, state) {
@@ -40,8 +42,11 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/manager', builder: (_, __) => const ManagerDashboardPage()),
       GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
       GoRoute(path: '/admin/settings', builder: (_, __) => const AdminSettingsPage()),
+      GoRoute(path: '/admin/reservations', builder: (_, __) => const ReservationManagementPage()),
     ],
   );
+  AppNavigator.router = router;
+  return router;
 });
 
 class _AuthRefresher extends ChangeNotifier {

@@ -144,6 +144,7 @@ class CleaningModel {
   final List<String> photoUrls;
   final String memo;
   final DateTime? completedAt;
+  final Map<String, dynamic>? nextGuestSnapshot;
 
   CleaningModel({
     required this.id,
@@ -157,6 +158,7 @@ class CleaningModel {
     required this.photoUrls,
     required this.memo,
     this.completedAt,
+    this.nextGuestSnapshot,
   });
 
   bool get isUnassigned => status == 'unassigned';
@@ -182,6 +184,7 @@ class CleaningModel {
       photoUrls: (d['photoUrls'] as List<dynamic>?)?.cast<String>() ?? const [],
       memo: d['memo'] as String? ?? '',
       completedAt: (d['completedAt'] as Timestamp?)?.toDate(),
+      nextGuestSnapshot: (d['nextGuestSnapshot'] as Map<String, dynamic>?),
     );
   }
 }

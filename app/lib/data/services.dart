@@ -175,6 +175,14 @@ class FunctionsService {
     await _fn.httpsCallable('deleteUser').call({'uid': uid});
   }
 
+  /// iCal 즉시 동기화 (branchId 없으면 전체 호점)
+  Future<Map<String, dynamic>> syncICalManual({String? branchId}) async {
+    final res = await _fn.httpsCallable('syncICalManual').call({
+      if (branchId != null) 'branchId': branchId,
+    });
+    return Map<String, dynamic>.from(res.data as Map);
+  }
+
   /// 본인 프로필 수정 (이름 / 프로필 사진 / 언어).
   /// photoUrl에 명시적으로 null을 넘기려면 clearPhoto=true 사용.
   Future<void> updateMyProfile({

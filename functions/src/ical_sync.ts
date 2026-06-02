@@ -83,10 +83,10 @@ function extractGuestCount(description: string, summary: string = ''): number {
 }
 
 /** 호점 한 곳의 iCal 동기화 */
-async function syncBranch(branchId: string, branch: BranchDoc): Promise<{ added: number; updated: number; total: number }> {
+async function syncBranch(branchId: string, branch: BranchDoc): Promise<{ added: number; updated: number; removed: number; total: number }> {
   if (!branch.iCalSourceUrl) {
     console.log(`[skip] ${branchId} ${branch.name}: iCalSourceUrl 미설정`);
-    return { added: 0, updated: 0, total: 0 };
+    return { added: 0, updated: 0, removed: 0, total: 0 };
   }
 
   const db = admin.firestore();
@@ -95,6 +95,8 @@ async function syncBranch(branchId: string, branch: BranchDoc): Promise<{ added:
   let added = 0;
   let updated = 0;
   let total = 0;
+  // 이번 피드에 존재하는 iCalUid 집합 (삭제 동기화용)
+  const seenUids = new Set<string>();
 
   const batch = db.batch();
 
@@ -105,6 +107,7 @@ async function syncBranch(branchId: string, branch: BranchDoc): Promise<{ added:
 
     const iCalUid = event.uid;
     if (!iCalUid) continue;
+    seenUids.add(iCalUid);
 
     const summary = (event.summary as string) || '';
     const description = (event.description as string) || '';
@@ -153,13 +156,36 @@ async function syncBranch(branchId: string, branch: BranchDoc): Promise<{ added:
 
   await batch.commit();
 
+  // ===== 삭제 동기화 =====
+  // Google Calendar에서 지워진(취소된) 예약을 앱에서도 제거.
+  // 안전장치: (1) iCal에서 생성된 예약만(iCalUid 존재) — 수동 추가 예약 보존,
+  //          (2) 체크아웃이 오늘 이후인 예약만 — 과거 예약은 피드 범위 밖일 수 있어 보존.
+  let removed = 0;
+  const cutoff = new Date();
+  cutoff.setHours(0, 0, 0, 0);
+
+  const existing = await db.collection('reservations').where('branchId', '==', branchId).get();
+  const delBatch = db.batch();
+  for (const doc of existing.docs) {
+    const d = doc.data();
+    const uid = d.iCalUid as string | undefined;
+    if (!uid || seenUids.has(uid)) continue; // 수동 예약이거나 아직 피드에 존재 → 보존
+    const checkOut = (d.checkOut as admin.firestore.Timestamp | undefined)?.toDate();
+    if (!checkOut || checkOut < cutoff) continue; // 과거 예약 보존
+    // 취소/삭제된 예약 → 예약 + 청소(동일 ID) 삭제
+    delBatch.delete(doc.ref);
+    delBatch.delete(db.collection('cleanings').doc(doc.id));
+    removed++;
+  }
+  if (removed > 0) await delBatch.commit();
+
   // 호점 lastSyncAt 업데이트
   await db.collection('branches').doc(branchId).update({
     iCalLastSyncAt: admin.firestore.FieldValue.serverTimestamp(),
   });
 
-  console.log(`[sync] ${branchId} ${branch.name}: total=${total}, added=${added}, updated=${updated}`);
-  return { added, updated, total };
+  console.log(`[sync] ${branchId} ${branch.name}: total=${total}, added=${added}, updated=${updated}, removed=${removed}`);
+  return { added, updated, removed, total };
 }
 
 /**

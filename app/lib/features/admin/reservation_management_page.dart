@@ -283,7 +283,10 @@ class _WeekRow extends StatelessWidget {
       ));
     }
 
-    int trackOf(String branchId) {
+    // 충돌 회피 트랙 배정 (greedy interval coloring):
+    // 컬럼 범위가 겹치는 예약은 서로 다른 트랙에 배치 → 같은 호점 중복 예약도 모두 보임.
+    // 호점 순서를 우선해 가능한 한 호점별 트랙 정렬을 유지.
+    int branchPriority(String branchId) {
       switch (branchId) {
         case 'branch1': return 0;
         case 'branch2': return 1;
@@ -292,9 +295,28 @@ class _WeekRow extends StatelessWidget {
       }
     }
 
+    visibleRes.sort((a, b) {
+      final c = branchPriority(a.reservation.branchId)
+          .compareTo(branchPriority(b.reservation.branchId));
+      if (c != 0) return c;
+      final s = a.startCol.compareTo(b.startCol);
+      if (s != 0) return s;
+      return a.reservation.id.compareTo(b.reservation.id);
+    });
+
+    final trackLastCol = <int>[]; // 트랙별 마지막 점유 endCol
     final result = <_PillLayout>[];
     for (final res in visibleRes) {
-      result.add(_PillLayout(range: res, track: trackOf(res.reservation.branchId)));
+      var track = 0;
+      while (track < trackLastCol.length && trackLastCol[track] >= res.startCol) {
+        track++;
+      }
+      if (track == trackLastCol.length) {
+        trackLastCol.add(res.endCol);
+      } else {
+        trackLastCol[track] = res.endCol;
+      }
+      result.add(_PillLayout(range: res, track: track));
     }
     return result;
   }

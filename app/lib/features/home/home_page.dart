@@ -351,12 +351,18 @@ class _BranchList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // 호점별로 가장 가까운 청소 1건씩 (배정 여부 무관)
+    // 호점별로 가장 가까운 청소 1건씩 (배정 여부 무관).
+    // upcomingCleaningsProvider는 캘린더용으로 과거 7일도 포함하므로
+    // 홈 "다가오는 청소"에서는 오늘 이후 청소만 대상으로 한다.
+    final now = DateTime.now();
+    final todayStart = DateTime(now.year, now.month, now.day);
     final Map<String, CleaningModel?> nearestByBranch = {};
     for (final b in branches) {
       nearestByBranch[b.id] = null;
     }
     for (final c in cleanings) {
+      final d = DateTime(c.scheduledDate.year, c.scheduledDate.month, c.scheduledDate.day);
+      if (d.isBefore(todayStart)) continue;
       if (nearestByBranch.containsKey(c.branchId) && nearestByBranch[c.branchId] == null) {
         nearestByBranch[c.branchId] = c;
       }
@@ -572,8 +578,26 @@ class _TaskCard extends ConsumerWidget {
     final branchColor = AppColors.branchColor(cleaning.branchId);
     final user = ref.watch(currentUserProvider).valueOrNull;
     final isMine = user != null && cleaning.assigneeUid == user.uid;
-    final reservationAsync = ref.watch(reservationProvider(cleaning.reservationId));
-    final reservation = reservationAsync.valueOrNull;
+
+    // 청소 후 입실하는 "다음 게스트" 표시 (체크아웃하는 이전 게스트가 아님).
+    // 같은 호점 & checkIn == 청소 예정일(=이전 게스트 체크아웃일)인 예약 매칭.
+    final reservations = ref.watch(upcomingReservationsProvider).valueOrNull ?? const <ReservationModel>[];
+    bool sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+    ReservationModel? incoming;
+    for (final r in reservations) {
+      if (r.branchId == cleaning.branchId && sameDay(r.checkIn, cleaning.scheduledDate)) {
+        incoming = r;
+        break;
+      }
+    }
+    // 라이브 매칭 실패 시 완료 청소에 저장된 다음 게스트 스냅샷 사용
+    String? nextGuestName = incoming?.guestName;
+    int? nextGuestCount = incoming?.guestCount;
+    if (nextGuestName == null && cleaning.nextGuestSnapshot != null) {
+      final s = cleaning.nextGuestSnapshot!;
+      nextGuestName = s['guestName'] as String?;
+      nextGuestCount = (s['guestCount'] as num?)?.toInt();
+    }
 
     return Material(
       color: AppColors.panel,
@@ -626,15 +650,22 @@ class _TaskCard extends ConsumerWidget {
                           ],
                         ),
                         const SizedBox(height: 4),
-                        if (reservation != null)
+                        if (nextGuestName != null && nextGuestName.isNotEmpty) ...[
                           Text(
-                            '${reservation.guestName}님 · 👤 ${reservation.guestCount}인',
+                            '${nextGuestName}님 · 👤 ${nextGuestCount ?? 0}인',
                             style: const TextStyle(fontSize: 13, color: AppColors.text, fontWeight: FontWeight.w600),
-                          )
-                        else
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 1),
                           Text(
-                            '체크아웃 ${DateFormat('M/d (E)', 'ko').format(cleaning.scheduledDate)}',
+                            '신규 입실 게스트',
+                            style: TextStyle(fontSize: 10, color: branchColor, fontWeight: FontWeight.w600),
+                          ),
+                        ] else
+                          Text(
+                            '입실 예정 게스트 없음 · 체크아웃 ${DateFormat('M/d (E)', 'ko').format(cleaning.scheduledDate)}',
                             style: const TextStyle(fontSize: 13, color: AppColors.muted, fontWeight: FontWeight.w500),
+                            maxLines: 1, overflow: TextOverflow.ellipsis,
                           ),
                       ],
                     ),

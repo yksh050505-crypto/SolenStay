@@ -24,6 +24,8 @@ export {
   registerUser,
   updateUserPin,
   deactivateUser,
+  deleteUser,
+  updateMyProfile,
 } from './auth_pin';
 
 // ===== iCal 동기화 =====

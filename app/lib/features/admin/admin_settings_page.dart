@@ -864,6 +864,19 @@ class _UserRow extends ConsumerWidget {
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),
+          // 삭제 버튼 (본인 계정은 숨김)
+          if (ref.watch(currentUserProvider).valueOrNull?.uid != user.uid) ...[
+            const SizedBox(width: 4),
+            IconButton(
+              onPressed: () => _showDeleteUserDialog(context, ref),
+              icon: const Icon(Icons.delete_outline, size: 18),
+              color: AppColors.danger,
+              tooltip: '사용자 삭제',
+              visualDensity: VisualDensity.compact,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              padding: EdgeInsets.zero,
+            ),
+          ],
           const SizedBox(width: 8),
           Container(
             width: 8,
@@ -876,6 +889,40 @@ class _UserRow extends ConsumerWidget {
         ],
       ),
     );
+  }
+
+  Future<void> _showDeleteUserDialog(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('사용자 삭제'),
+        content: Text(
+          '${user.name} 님을 완전히 삭제하시겠습니까?\n'
+          '계정과 모든 정보가 영구 삭제되며 복구할 수 없습니다.',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+    try {
+      await ref.read(functionsServiceProvider).deleteUser(user.uid);
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${user.name} 님이 삭제되었습니다'), backgroundColor: AppColors.ok),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('삭제 실패: $e')));
+      }
+    }
   }
 
   Future<void> _showResetPinDialog(BuildContext context, WidgetRef ref) async {

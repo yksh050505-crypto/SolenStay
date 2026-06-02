@@ -1,5 +1,9 @@
+import 'dart:typed_data';
+import 'dart:ui' show Locale;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -64,13 +68,15 @@ final todayCleaningsProvider = StreamProvider<List<CleaningModel>>((ref) {
 });
 
 // ===== 청소 — 앞으로 (캘린더용) =====
+// 윈도우를 upcomingReservationsProvider(오늘-7 ~ 오늘+60)와 동일하게 맞춰야
+// 캘린더에 표시되는 모든 예약 pill이 청소 데이터를 갖게 되어 배정 여부 배지가 정확해짐.
 final upcomingCleaningsProvider = StreamProvider<List<CleaningModel>>((ref) {
   final user = ref.watch(firebaseUserProvider).value;
   if (user == null) return Stream.value(const <CleaningModel>[]);
 
   final now = DateTime.now();
-  final start = DateTime(now.year, now.month, now.day);
-  final end = start.add(const Duration(days: 31));
+  final start = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 7));
+  final end = start.add(const Duration(days: 67));
 
   return ref
       .watch(firestoreProvider)
@@ -165,6 +171,25 @@ class FunctionsService {
     await _fn.httpsCallable('updateUserPin').call({'uid': uid, 'pin': pin});
   }
 
+  Future<void> deleteUser(String uid) async {
+    await _fn.httpsCallable('deleteUser').call({'uid': uid});
+  }
+
+  /// 본인 프로필 수정 (이름 / 프로필 사진 / 언어).
+  /// photoUrl에 명시적으로 null을 넘기려면 clearPhoto=true 사용.
+  Future<void> updateMyProfile({
+    String? name,
+    String? photoUrl,
+    bool clearPhoto = false,
+    String? language,
+  }) async {
+    await _fn.httpsCallable('updateMyProfile').call({
+      if (name != null) 'name': name,
+      if (clearPhoto) 'photoUrl': null else if (photoUrl != null) 'photoUrl': photoUrl,
+      if (language != null) 'language': language,
+    });
+  }
+
   Future<void> claimCleaning(String cleaningId) async {
     await _fn.httpsCallable('claimCleaning').call({'cleaningId': cleaningId});
   }
@@ -245,3 +270,30 @@ class FunctionsService {
 final functionsServiceProvider = Provider<FunctionsService>(
   (ref) => FunctionsService(ref.watch(functionsProvider)),
 );
+
+// ===== 프로필 사진 업로드 =====
+final storageProvider = Provider<FirebaseStorage>((ref) => FirebaseStorage.instance);
+
+/// 프로필 사진을 users/{uid}/profile.{ext} 에 업로드하고 다운로드 URL 반환.
+Future<String> uploadProfilePhoto({
+  required String uid,
+  required Uint8List bytes,
+  String ext = 'jpg',
+}) async {
+  final contentType = ext == 'png' ? 'image/png' : 'image/jpeg';
+  final ref = FirebaseStorage.instance.ref('users/$uid/profile.$ext');
+  await ref.putData(bytes, SettableMetadata(contentType: contentType));
+  return ref.getDownloadURL();
+}
+
+// ===== 앱 언어(Locale) =====
+/// 사용자가 방금 선택한 언어를 즉시 반영하기 위한 오버라이드 (서버 동기화 전까지).
+final localeOverrideProvider = StateProvider<Locale?>((ref) => null);
+
+/// 실제 적용 Locale = 오버라이드 우선, 없으면 사용자 프로필의 language, 기본 ko.
+final localeProvider = Provider<Locale>((ref) {
+  final override = ref.watch(localeOverrideProvider);
+  if (override != null) return override;
+  final lang = ref.watch(currentUserProvider).valueOrNull?.language ?? 'ko';
+  return Locale(lang);
+});

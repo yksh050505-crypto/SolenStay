@@ -206,3 +206,84 @@ export const deactivateUser = onCall({ region: REGION }, async (req) => {
 
   return { ok: true };
 });
+
+/**
+ * 본인 프로필 자가 수정 (이름 / 프로필 사진 / 언어)
+ * Firestore 규칙상 클라이언트는 name/photoUrl/language를 직접 못 바꾸므로 함수 경유.
+ * @param data { name?: string, photoUrl?: string|null, language?: 'ko'|'en' }
+ */
+export const updateMyProfile = onCall({ region: REGION }, async (req) => {
+  const auth = requireAuth(req);
+  const { name, photoUrl, language } = req.data ?? {};
+
+  const updates: Record<string, unknown> = {};
+
+  if (name !== undefined) {
+    if (typeof name !== 'string' || !name.trim()) {
+      throw new HttpsError('invalid-argument', 'name invalid');
+    }
+    const trimmed = name.trim();
+    // 활성 사용자 중 본인 제외 이름 중복 검사 (로그인 식별자라 유일해야 함)
+    const dup = await admin
+      .firestore()
+      .collection('users')
+      .where('name', '==', trimmed)
+      .where('active', '==', true)
+      .limit(2)
+      .get();
+    if (dup.docs.some((d) => d.id !== auth.uid)) {
+      throw new HttpsError('already-exists', '같은 이름의 사용자가 이미 있습니다');
+    }
+    updates.name = trimmed;
+    await admin.auth().updateUser(auth.uid, { displayName: trimmed });
+  }
+
+  if (photoUrl !== undefined) {
+    if (photoUrl !== null && typeof photoUrl !== 'string') {
+      throw new HttpsError('invalid-argument', 'photoUrl invalid');
+    }
+    updates.photoUrl = photoUrl === null ? admin.firestore.FieldValue.delete() : photoUrl;
+  }
+
+  if (language !== undefined) {
+    if (language !== 'ko' && language !== 'en') {
+      throw new HttpsError('invalid-argument', 'language must be ko or en');
+    }
+    updates.language = language;
+  }
+
+  if (Object.keys(updates).length === 0) {
+    return { ok: true };
+  }
+
+  await admin.firestore().collection('users').doc(auth.uid).update(updates);
+  return { ok: true };
+});
+
+/**
+ * 매니저가 사용자 완전 삭제 (Auth 계정 + Firestore 문서 제거)
+ * 비활성화(deactivateUser)와 달리 기록을 남기지 않음.
+ * @param data { uid: string }
+ */
+export const deleteUser = onCall({ region: REGION }, async (req) => {
+  const caller = requireManager(req);
+
+  const { uid } = req.data ?? {};
+  if (typeof uid !== 'string' || !uid) {
+    throw new HttpsError('invalid-argument', 'uid required');
+  }
+  if (uid === caller.uid) {
+    throw new HttpsError('failed-precondition', '본인 계정은 삭제할 수 없습니다');
+  }
+
+  // Auth 계정 삭제 (이미 없으면 무시)
+  try {
+    await admin.auth().deleteUser(uid);
+  } catch (e) {
+    if ((e as { code?: string })?.code !== 'auth/user-not-found') throw e;
+  }
+
+  await admin.firestore().collection('users').doc(uid).delete();
+
+  return { ok: true };
+});

@@ -581,7 +581,10 @@ class _WeekRow extends StatelessWidget {
                 // 호점 트랙은 위에서부터 (track 0 = 맨 위)
                 final invTrack = (trackCount - 1) - p.track;
                 final bottom = pillBottomBase + invTrack * (pillH + pillVGap);
-                final isUnassigned = cleaningByResId[r.reservation.id]?.isUnassigned ?? false;
+                // 청소 데이터가 없거나(아직 미생성/로드 전) 미배정이면 '!' 배지.
+                // null을 false로 떨어뜨려 초록 체크가 잘못 뜨던 버그 방지.
+                final cleaning = cleaningByResId[r.reservation.id];
+                final isUnassigned = cleaning == null || cleaning.isUnassigned;
                 return Positioned(
                   left: left,
                   width: width,

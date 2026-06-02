@@ -1,10 +1,15 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../core/constants.dart';
+import '../../core/l10n.dart';
 import '../../core/theme.dart';
+import '../../data/models.dart';
 import '../../data/services.dart';
 import '../shared/bottom_nav.dart';
 
@@ -20,15 +25,16 @@ class ProfilePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final user = ref.watch(currentUserProvider).value;
+    final l = L10n.of(context);
     final roleLabel = user?.isManager == true
-        ? '매니저'
+        ? l.t('매니저', 'Manager')
         : user?.isChief == true
-            ? '실장'
-            : '청소원';
+            ? l.t('실장', 'Chief')
+            : l.t('청소원', 'Cleaner');
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('내정보'),
+        title: Text(l.t('내정보', 'My Info')),
         automaticallyImplyLeading: false,
       ),
       bottomNavigationBar: const AppBottomNav(active: BottomTab.profile),
@@ -39,19 +45,9 @@ class ProfilePage extends ConsumerWidget {
             // 프로필 (중앙 정렬)
             Column(
               children: [
-                Container(
-                  width: 80,
-                  height: 80,
-                  decoration: const BoxDecoration(
-                    color: AppColors.branch1,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Center(
-                    child: Text(
-                      user?.name.isNotEmpty == true ? user!.name[0] : '?',
-                      style: const TextStyle(color: Colors.white, fontSize: 30, fontWeight: FontWeight.w800),
-                    ),
-                  ),
+                GestureDetector(
+                  onTap: user == null ? null : () => _editProfileDialog(context, ref, user),
+                  child: _Avatar(name: user?.name ?? '', photoUrl: user?.photoUrl),
                 ),
                 const SizedBox(height: 10),
                 Text(user?.name ?? '...', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
@@ -73,64 +69,75 @@ class ProfilePage extends ConsumerWidget {
 
             // 매니저/실장 전용
             if (user?.canManageDashboard ?? false) ...[
-              const _SectionTitle('관리'),
+              _SectionTitle(l.t('관리', 'Management')),
               _menuItem(
                 emoji: '📊',
-                label: '매니저 대시보드',
+                label: l.t('매니저 대시보드', 'Manager dashboard'),
                 onTap: () => context.push('/manager'),
               ),
               // 매니저만 — 관리자 설정
               if (user?.isManager ?? false)
                 _menuItem(
                   emoji: '⚙️',
-                  label: '관리자 설정',
+                  label: l.t('관리자 설정', 'Admin settings'),
                   onTap: () => context.push('/admin/settings'),
                 ),
               const SizedBox(height: 14),
             ],
 
             // 계정
-            const _SectionTitle('계정'),
-            _menuItem(emoji: '🔒', label: 'PIN 변경', onTap: () => _changePinDialog(context, ref)),
-            _menuItem(emoji: '👤', label: '이름 / 프로필 사진', onTap: () => _comingSoon(context)),
+            _SectionTitle(l.t('계정', 'Account')),
+            _menuItem(emoji: '🔒', label: l.t('PIN 변경', 'Change PIN'), onTap: () => _changePinDialog(context, ref)),
+            _menuItem(
+              emoji: '👤',
+              label: l.t('이름 / 프로필 사진', 'Name / Profile photo'),
+              onTap: user == null ? null : () => _editProfileDialog(context, ref, user),
+            ),
             const SizedBox(height: 14),
 
             // 알림
-            const _SectionTitle('알림'),
+            _SectionTitle(l.t('알림', 'Notifications')),
             _toggleItem(
               emoji: '🔔',
-              label: '새 청소 일정 알림',
+              label: l.t('새 청소 일정 알림', 'New cleaning alerts'),
               value: ref.watch(_notiNewCleaningProvider),
               onChanged: (v) => ref.read(_notiNewCleaningProvider.notifier).state = v,
             ),
             _toggleItem(
               emoji: '📣',
-              label: '매니저 공지사항',
+              label: l.t('매니저 공지사항', 'Manager notices'),
               value: ref.watch(_notiManagerProvider),
               onChanged: (v) => ref.read(_notiManagerProvider.notifier).state = v,
             ),
             _toggleItem(
               emoji: '📅',
-              label: '일정 변경 알림',
+              label: l.t('일정 변경 알림', 'Schedule change alerts'),
               value: ref.watch(_notiScheduleProvider),
               onChanged: (v) => ref.read(_notiScheduleProvider.notifier).state = v,
             ),
             const SizedBox(height: 14),
 
             // 기타
-            const _SectionTitle('기타'),
+            _SectionTitle(l.t('기타', 'More')),
             _menuItem(
               emoji: '🌐',
-              label: '언어',
-              trailing: const Text('한국어 ›', style: TextStyle(color: AppColors.muted, fontSize: 13)),
-              onTap: () => _comingSoon(context),
+              label: l.t('언어', 'Language'),
+              trailing: Text(
+                '${l.t('한국어', 'English')} ›',
+                style: const TextStyle(color: AppColors.muted, fontSize: 13),
+              ),
+              onTap: () => _languageDialog(context, ref, user),
             ),
-            _menuItem(emoji: '❓', label: '도움말 / 문의', onTap: () => _comingSoon(context)),
+            _menuItem(
+              emoji: '❓',
+              label: l.t('도움말 / 문의', 'Help / Contact'),
+              onTap: () => context.push('/help'),
+            ),
             _menuItem(
               emoji: 'ℹ️',
-              label: '앱 버전',
-              trailing: const Text('v0.1.0', style: TextStyle(color: AppColors.dim, fontSize: 12)),
-              onTap: null,
+              label: l.t('앱 버전', 'App version'),
+              trailing: const Text('v${AppConstants.appVersion}', style: TextStyle(color: AppColors.dim, fontSize: 12)),
+              onTap: () => _showAbout(context, l),
             ),
             const SizedBox(height: 18),
 
@@ -147,7 +154,7 @@ class ProfilePage extends ConsumerWidget {
                 onPressed: () async {
                   await FirebaseAuth.instance.signOut();
                 },
-                child: const Text('로그아웃', style: TextStyle(fontWeight: FontWeight.w700)),
+                child: Text(l.t('로그아웃', 'Sign out'), style: const TextStyle(fontWeight: FontWeight.w700)),
               ),
             ),
           ],
@@ -156,9 +163,169 @@ class ProfilePage extends ConsumerWidget {
     );
   }
 
-  void _comingSoon(BuildContext context) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('곧 지원될 기능입니다'), duration: Duration(seconds: 1)),
+  /// 이름 / 프로필 사진 편집
+  Future<void> _editProfileDialog(BuildContext context, WidgetRef ref, UserModel user) async {
+    final l = L10n.of(context);
+    final nameCtrl = TextEditingController(text: user.name);
+    String? pickedPhotoUrl = user.photoUrl;
+    bool removePhoto = false;
+    bool busy = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) {
+          Future<void> pick() async {
+            final picker = ImagePicker();
+            final file = await picker.pickImage(
+              source: ImageSource.gallery,
+              maxWidth: 800,
+              maxHeight: 800,
+              imageQuality: 80,
+            );
+            if (file == null) return;
+            setState(() => busy = true);
+            try {
+              final bytes = await file.readAsBytes();
+              final ext = file.name.toLowerCase().endsWith('.png') ? 'png' : 'jpg';
+              final url = await uploadProfilePhoto(uid: user.uid, bytes: bytes, ext: ext);
+              setState(() {
+                pickedPhotoUrl = url;
+                removePhoto = false;
+              });
+            } catch (e) {
+              if (ctx.mounted) {
+                ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('${l.t('사진 업로드 실패', 'Photo upload failed')}: $e')));
+              }
+            } finally {
+              setState(() => busy = false);
+            }
+          }
+
+          final showUrl = removePhoto ? null : pickedPhotoUrl;
+          return AlertDialog(
+            title: Text(l.t('이름 / 프로필 사진', 'Name / Profile photo')),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Stack(
+                    children: [
+                      _Avatar(name: nameCtrl.text, photoUrl: showUrl, size: 84),
+                      Positioned(
+                        right: 0,
+                        bottom: 0,
+                        child: Material(
+                          color: AppColors.branch1,
+                          shape: const CircleBorder(),
+                          child: InkWell(
+                            customBorder: const CircleBorder(),
+                            onTap: busy ? null : pick,
+                            child: const Padding(
+                              padding: EdgeInsets.all(6),
+                              child: Icon(Icons.camera_alt, size: 16, color: Colors.white),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (showUrl != null)
+                    TextButton.icon(
+                      onPressed: busy ? null : () => setState(() => removePhoto = true),
+                      icon: const Icon(Icons.delete_outline, size: 16),
+                      style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                      label: Text(l.t('사진 제거', 'Remove photo')),
+                    ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: nameCtrl,
+                    onChanged: (_) => setState(() {}),
+                    decoration: InputDecoration(labelText: l.t('이름', 'Name')),
+                  ),
+                ],
+              ),
+            ),
+            actions: [
+              TextButton(onPressed: busy ? null : () => Navigator.pop(ctx), child: Text(l.t('취소', 'Cancel'))),
+              FilledButton(
+                onPressed: busy
+                    ? null
+                    : () async {
+                        final name = nameCtrl.text.trim();
+                        if (name.isEmpty) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text(l.t('이름을 입력하세요', 'Enter a name'))));
+                          return;
+                        }
+                        setState(() => busy = true);
+                        try {
+                          await ref.read(functionsServiceProvider).updateMyProfile(
+                                name: name == user.name ? null : name,
+                                photoUrl: removePhoto ? null : (pickedPhotoUrl != user.photoUrl ? pickedPhotoUrl : null),
+                                clearPhoto: removePhoto,
+                              );
+                          if (ctx.mounted) {
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(content: Text(l.t('프로필이 저장되었습니다', 'Profile saved')), backgroundColor: AppColors.ok),
+                            );
+                          }
+                        } catch (e) {
+                          setState(() => busy = false);
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('${l.t('저장 실패', 'Save failed')}: $e')));
+                          }
+                        }
+                      },
+                child: busy
+                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : Text(l.t('저장', 'Save')),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  /// 언어 선택
+  Future<void> _languageDialog(BuildContext context, WidgetRef ref, UserModel? user) async {
+    final l = L10n.of(context);
+    final current = ref.read(localeProvider).languageCode;
+    final picked = await showDialog<String>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(l.t('언어', 'Language')),
+        children: [
+          for (final entry in const [('ko', '한국어'), ('en', 'English')])
+            RadioListTile<String>(
+              value: entry.$1,
+              groupValue: current,
+              title: Text(entry.$2),
+              onChanged: (v) => Navigator.pop(ctx, v),
+            ),
+        ],
+      ),
+    );
+    if (picked == null || picked == current) return;
+
+    // 즉시 반영 (오버라이드) 후 서버 동기화
+    ref.read(localeOverrideProvider.notifier).state = Locale(picked);
+    if (user != null) {
+      try {
+        await ref.read(functionsServiceProvider).updateMyProfile(language: picked);
+      } catch (_) {
+        // 서버 저장 실패해도 이번 세션 표시는 유지
+      }
+    }
+  }
+
+  void _showAbout(BuildContext context, L10n l) {
+    showAboutDialog(
+      context: context,
+      applicationName: 'SolenStay',
+      applicationVersion: 'v${AppConstants.appVersion}',
+      applicationLegalese: l.t('1·2·3호점 예약·청소 관리', 'Reservation & cleaning management'),
     );
   }
 
@@ -273,6 +440,42 @@ class ProfilePage extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// 프로필 아바타 — 사진이 있으면 사진, 없으면 이름 첫 글자
+class _Avatar extends StatelessWidget {
+  final String name;
+  final String? photoUrl;
+  final double size;
+  const _Avatar({required this.name, this.photoUrl, this.size = 80});
+
+  @override
+  Widget build(BuildContext context) {
+    final hasPhoto = photoUrl != null && photoUrl!.isNotEmpty;
+    return Container(
+      width: size,
+      height: size,
+      decoration: const BoxDecoration(color: AppColors.branch1, shape: BoxShape.circle),
+      clipBehavior: Clip.antiAlias,
+      child: hasPhoto
+          ? CachedNetworkImage(
+              imageUrl: photoUrl!,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => const Center(
+                child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+              ),
+              errorWidget: (_, __, ___) => _initial(),
+            )
+          : _initial(),
+    );
+  }
+
+  Widget _initial() => Center(
+        child: Text(
+          name.isNotEmpty ? name[0] : '?',
+          style: TextStyle(color: Colors.white, fontSize: size * 0.38, fontWeight: FontWeight.w800),
+        ),
+      );
 }
 
 class _SectionTitle extends StatelessWidget {

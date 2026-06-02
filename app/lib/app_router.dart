@@ -13,6 +13,7 @@ import 'features/manager/manager_dashboard_page.dart';
 import 'features/notifications/notifications_page.dart';
 import 'features/admin/admin_settings_page.dart';
 import 'features/admin/reservation_management_page.dart';
+import 'features/help/help_page.dart';
 import 'core/app_navigator.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
@@ -43,6 +44,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       GoRoute(path: '/notifications', builder: (_, __) => const NotificationsPage()),
       GoRoute(path: '/admin/settings', builder: (_, __) => const AdminSettingsPage()),
       GoRoute(path: '/admin/reservations', builder: (_, __) => const ReservationManagementPage()),
+      GoRoute(path: '/help', builder: (_, __) => const HelpPage()),
     ],
   );
   AppNavigator.router = router;

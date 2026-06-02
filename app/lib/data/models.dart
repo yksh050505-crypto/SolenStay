@@ -8,6 +8,8 @@ class UserModel {
   final bool pinChanged;
   final bool active;
   final List<String> fcmTokens;
+  final String? photoUrl;
+  final String language; // 'ko' | 'en'
 
   UserModel({
     required this.uid,
@@ -16,6 +18,8 @@ class UserModel {
     required this.pinChanged,
     required this.active,
     required this.fcmTokens,
+    this.photoUrl,
+    this.language = 'ko',
   });
 
   bool get isManager => role == 'manager';
@@ -32,6 +36,8 @@ class UserModel {
       pinChanged: d['pinChanged'] as bool? ?? false,
       active: d['active'] as bool? ?? true,
       fcmTokens: (d['fcmTokens'] as List<dynamic>?)?.cast<String>() ?? const [],
+      photoUrl: d['photoUrl'] as String?,
+      language: d['language'] as String? ?? 'ko',
     );
   }
 }

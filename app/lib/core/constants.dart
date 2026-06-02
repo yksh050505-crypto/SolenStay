@@ -5,4 +5,5 @@ class AppConstants {
   static const maxPhotos = 12;
   static const photoMaxSizeBytes = 5 * 1024 * 1024;
   static const initialPin = '000000';
+  static const appVersion = '0.1.0';
 }

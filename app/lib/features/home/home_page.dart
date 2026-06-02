@@ -144,14 +144,17 @@ class _TimelineView extends ConsumerWidget {
     final today = DateTime(now.year, now.month, now.day);
     final weekEnd = today.add(const Duration(days: 7));
 
-    // 입실 게스트 매칭: cleaning.scheduledDate == reservation.checkIn (같은 호점)
+    // 입실 게스트 매칭: 같은 호점에서 청소일 이후 가장 가까운 입실 예약
     ReservationModel? incomingOf(CleaningModel c) {
+      final cd = DateTime(c.scheduledDate.year, c.scheduledDate.month, c.scheduledDate.day);
+      ReservationModel? best;
       for (final r in reservations) {
-        if (r.branchId == c.branchId && _sameDay(r.checkIn, c.scheduledDate)) {
-          return r;
-        }
+        if (r.branchId != c.branchId) continue;
+        final inDay = DateTime(r.checkIn.year, r.checkIn.month, r.checkIn.day);
+        if (inDay.isBefore(cd)) continue;
+        if (best == null || r.checkIn.isBefore(best.checkIn)) best = r;
       }
-      return null;
+      return best;
     }
 
     // 오늘 / 다가오는(내일 ~ +7일) 분리
@@ -583,24 +586,27 @@ class _TaskCard extends ConsumerWidget {
     final isMine = user != null && cleaning.assigneeUid == user.uid;
 
     // 청소 후 입실하는 "다음 게스트" 표시 (체크아웃하는 이전 게스트가 아님).
-    // 같은 호점 & checkIn == 청소 예정일(=이전 게스트 체크아웃일)인 예약 매칭.
+    // 같은 호점에서 청소 예정일(=이전 게스트 체크아웃일) 이후 가장 가까운 입실 예약을 매칭.
     final reservations = ref.watch(upcomingReservationsProvider).valueOrNull ?? const <ReservationModel>[];
     bool sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+    final cleanDay = DateTime(cleaning.scheduledDate.year, cleaning.scheduledDate.month, cleaning.scheduledDate.day);
     ReservationModel? incoming;
     for (final r in reservations) {
-      if (r.branchId == cleaning.branchId && sameDay(r.checkIn, cleaning.scheduledDate)) {
-        incoming = r;
-        break;
-      }
+      if (r.branchId != cleaning.branchId) continue;
+      final inDay = DateTime(r.checkIn.year, r.checkIn.month, r.checkIn.day);
+      if (inDay.isBefore(cleanDay)) continue; // 청소일 이전 입실(이전 게스트 등) 제외
+      if (incoming == null || r.checkIn.isBefore(incoming.checkIn)) incoming = r;
     }
     // 라이브 매칭 실패 시 완료 청소에 저장된 다음 게스트 스냅샷 사용
     String? nextGuestName = incoming?.guestName;
     int? nextGuestCount = incoming?.guestCount;
+    final DateTime? nextCheckIn = incoming?.checkIn;
     if (nextGuestName == null && cleaning.nextGuestSnapshot != null) {
       final s = cleaning.nextGuestSnapshot!;
       nextGuestName = s['guestName'] as String?;
       nextGuestCount = (s['guestCount'] as num?)?.toInt();
     }
+    final bool sameDayArrival = nextCheckIn != null && sameDay(nextCheckIn, cleaning.scheduledDate);
 
     return Material(
       color: AppColors.panel,
@@ -661,7 +667,9 @@ class _TaskCard extends ConsumerWidget {
                           ),
                           const SizedBox(height: 1),
                           Text(
-                            '신규 입실 게스트',
+                            sameDayArrival
+                                ? '신규 입실 게스트 (당일)'
+                                : '다음 입실 ${DateFormat('M/d (E)', 'ko').format(nextCheckIn!)}',
                             style: TextStyle(fontSize: 10, color: branchColor, fontWeight: FontWeight.w600),
                           ),
                         ] else

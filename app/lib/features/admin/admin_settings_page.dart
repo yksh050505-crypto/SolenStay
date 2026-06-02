@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -154,6 +155,12 @@ class AdminSettingsPage extends ConsumerWidget {
                 ),
               ),
             ),
+            const SizedBox(height: 24),
+
+            // 앱 버전 관리 (APK 업데이트 안내용)
+            const _SectionHeader(title: '앱 버전'),
+            const SizedBox(height: 10),
+            const _AppVersionSection(),
             const SizedBox(height: 24),
 
             // 사용자 관리 섹션
@@ -500,6 +507,190 @@ class AdminSettingsPage extends ConsumerWidget {
         ),
       );
     }
+  }
+}
+
+/// 앱 버전 관리 — 매니저가 새 버전(APK)을 등록하면 앱이 업데이트를 안내한다.
+class _AppVersionSection extends ConsumerWidget {
+  const _AppVersionSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final cfg = ref.watch(appVersionConfigProvider).valueOrNull;
+    final code = (cfg?['versionCode'] as num?)?.toInt();
+    final name = cfg?['versionName'] as String?;
+    final subtitle = (name != null && code != null)
+        ? '현재 v$name (code $code)'
+        : '등록된 버전 정보가 없습니다';
+
+    return Material(
+      color: AppColors.ok.withOpacity(0.06),
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: () => _showVersionDialog(context, ref, cfg),
+        borderRadius: BorderRadius.circular(12),
+        child: Container(
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppColors.ok.withOpacity(0.25)),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                decoration: BoxDecoration(
+                  color: AppColors.ok.withOpacity(0.15),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.system_update_outlined, color: AppColors.ok, size: 20),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('새 버전 등록', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                    const SizedBox(height: 2),
+                    Text(subtitle, style: const TextStyle(color: AppColors.muted, fontSize: 11)),
+                  ],
+                ),
+              ),
+              const Icon(Icons.chevron_right, color: AppColors.dim, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showVersionDialog(
+    BuildContext context,
+    WidgetRef ref,
+    Map<String, dynamic>? current,
+  ) async {
+    final codeCtrl = TextEditingController(
+      text: ((current?['versionCode'] as num?)?.toInt() ?? 1).toString(),
+    );
+    final nameCtrl = TextEditingController(text: current?['versionName'] as String? ?? '');
+    final urlCtrl = TextEditingController(text: current?['apkUrl'] as String? ?? '');
+    bool forceUpdate = current?['forceUpdate'] as bool? ?? false;
+    bool loading = false;
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: const Row(
+            children: [
+              Icon(Icons.system_update_outlined, color: AppColors.branch1, size: 22),
+              SizedBox(width: 8),
+              Text('새 버전 등록'),
+            ],
+          ),
+          content: SizedBox(
+            width: 360,
+            child: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  TextField(
+                    controller: codeCtrl,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(labelText: 'versionCode (숫자, 매번 증가)'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: nameCtrl,
+                    decoration: const InputDecoration(labelText: 'versionName (표시용)', hintText: '예: 0.2.0'),
+                  ),
+                  const SizedBox(height: 10),
+                  TextField(
+                    controller: urlCtrl,
+                    minLines: 1,
+                    maxLines: 3,
+                    keyboardType: TextInputType.url,
+                    decoration: const InputDecoration(labelText: 'APK 다운로드 URL'),
+                  ),
+                  const SizedBox(height: 6),
+                  const Text(
+                    '💡 Google Drive의 일반 공유 링크가 아닌 직접 다운로드 형식 URL을 입력하세요.',
+                    style: TextStyle(fontSize: 11, color: AppColors.muted, height: 1.4),
+                  ),
+                  const SizedBox(height: 6),
+                  CheckboxListTile(
+                    value: forceUpdate,
+                    onChanged: (v) => setState(() => forceUpdate = v ?? false),
+                    contentPadding: EdgeInsets.zero,
+                    controlAffinity: ListTileControlAffinity.leading,
+                    dense: true,
+                    title: const Text('강제 업데이트', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    subtitle: const Text('"나중에" 버튼 숨김', style: TextStyle(color: AppColors.muted, fontSize: 11)),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: loading ? null : () => Navigator.pop(ctx), child: const Text('취소')),
+            FilledButton(
+              onPressed: loading
+                  ? null
+                  : () async {
+                      final code = int.tryParse(codeCtrl.text.trim());
+                      final name = nameCtrl.text.trim();
+                      final url = urlCtrl.text.trim();
+                      if (code == null || code <= 0) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(content: Text('versionCode를 정확히 입력하세요')),
+                        );
+                        return;
+                      }
+                      if (name.isEmpty) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(content: Text('versionName을 입력하세요')),
+                        );
+                        return;
+                      }
+                      if (url.isEmpty) {
+                        ScaffoldMessenger.of(ctx).showSnackBar(
+                          const SnackBar(content: Text('APK 다운로드 URL을 입력하세요')),
+                        );
+                        return;
+                      }
+                      setState(() => loading = true);
+                      try {
+                        await FirebaseFirestore.instance.collection('config').doc('appVersion').set({
+                          'versionCode': code,
+                          'versionName': name,
+                          'apkUrl': url,
+                          'forceUpdate': forceUpdate,
+                          'updatedAt': FieldValue.serverTimestamp(),
+                        }, SetOptions(merge: true));
+                        if (ctx.mounted) {
+                          Navigator.pop(ctx);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('v$name (code $code) 등록 완료'), backgroundColor: AppColors.ok),
+                          );
+                        }
+                      } catch (e) {
+                        setState(() => loading = false);
+                        if (ctx.mounted) {
+                          ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('등록 실패: $e')));
+                        }
+                      }
+                    },
+              child: loading
+                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : const Text('저장'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

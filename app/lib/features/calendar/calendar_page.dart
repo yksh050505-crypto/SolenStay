@@ -528,11 +528,14 @@ class _WeekRow extends StatelessWidget {
     final pills = _layoutPills();
     // 트랙 수에 따라 row 높이 동적 (정사각에 가깝게)
     final trackCount = pills.isEmpty ? 0 : pills.map((p) => p.track).fold<int>(0, (m, v) => v > m ? v : m) + 1;
-    const rowHeightBase = 90.0;
+    const rowHeightBase = 74.0;
     const pillH = 26.0;
-    const pillVGap = 5.0;
-    // pill을 가운데보다 살짝 위로
-    final pillBottomBase = rowHeightBase / 2 - pillH / 2 + 6;
+    // 트랙 사이 간격 0: 인접 호점 예약은 붙여서 표시.
+    // (빈 중간 호점은 트랙 자체가 자리를 차지하므로 그 여백은 유지됨 — 예: 1·3호점만 차면 2호점 자리 공백 유지)
+    const pillVGap = 0.0;
+    // 맨 아래 pill을 셀 하단 테두리 가까이 고정 → 단일/다중 pill 셀의 위·아래 여백이 동일,
+    // 셀은 가운데로만 늘어나서 일반 날짜와 비슷하게 보임.
+    const pillBottomBase = 10.0;
     final rowHeight = rowHeightBase + (trackCount > 1 ? (trackCount - 1) * (pillH + pillVGap) : 0);
 
     return LayoutBuilder(

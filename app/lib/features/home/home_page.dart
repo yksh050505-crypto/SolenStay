@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme.dart';
+import '../../core/update_checker.dart';
 import '../../data/models.dart';
 import '../../data/services.dart';
 import '../cleaning_detail/cleaning_detail_page.dart' show reservationProvider;
@@ -33,6 +34,8 @@ class HomePage extends ConsumerWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
+              // 업데이트 안내 체커 (화면에 그려지지 않음)
+              const UpdateChecker(),
               // 상단 인사 + 매니저 버튼
               Row(
                 children: [

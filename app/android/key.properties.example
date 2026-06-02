@@ -1,0 +1,17 @@
+# 릴리스 서명 설정 템플릿.
+# 이 파일을 복사해서 같은 폴더에 "key.properties" (확장자 없이)로 저장하고 값을 채우세요.
+#   복사본(key.properties)과 키스토어(.jks)는 .gitignore로 제외됩니다 — 절대 공유/커밋 금지.
+#
+# 키스토어 생성(빌드 PC에서 1회, JDK의 keytool 사용):
+#   keytool -genkeypair -v -keystore solenstay-release.jks -storetype JKS \
+#     -keyalg RSA -keysize 2048 -validity 10000 -alias solenstay
+#   → solenstay-release.jks 를 android/app/ 폴더에 두세요.
+#
+# ⚠️ 이 키스토어 파일 + 비밀번호를 잃어버리면 앱을 다시는 업데이트(덮어쓰기)할 수 없습니다.
+#    안전한 곳에 반드시 백업하고, 모든 빌드 PC에 같은 .jks + key.properties를 복사하세요.
+
+storePassword=여기에_스토어_비밀번호
+keyPassword=여기에_키_비밀번호
+keyAlias=solenstay
+# android/app/ 기준 상대경로 (키스토어를 android/app/에 둔 경우)
+storeFile=solenstay-release.jks

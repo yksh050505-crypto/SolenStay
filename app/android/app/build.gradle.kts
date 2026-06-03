@@ -24,7 +24,7 @@ android {
 
     defaultConfig {
         applicationId = "com.solenstay.app"
-        minSdk = 23
+        minSdk = flutter.minSdkVersion
         multiDexEnabled = true
         targetSdk = 34
         versionCode = 1

@@ -641,6 +641,50 @@ class _AppVersionSection extends ConsumerWidget {
             ),
           ),
           actions: [
+            // 기존 등록값이 있으면 "삭제" 버튼 노출 (업데이트 안내 해제)
+            if (current != null)
+              TextButton(
+                onPressed: loading
+                    ? null
+                    : () async {
+                        final ok = await showDialog<bool>(
+                          context: ctx,
+                          builder: (c2) => AlertDialog(
+                            title: const Text('등록 취소'),
+                            content: const Text(
+                              '등록된 앱 버전 정보를 삭제합니다.\n'
+                              '사용자 앱의 업데이트 안내가 더 이상 뜨지 않습니다.',
+                            ),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(c2, false), child: const Text('취소')),
+                              FilledButton(
+                                onPressed: () => Navigator.pop(c2, true),
+                                style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+                                child: const Text('삭제'),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (ok != true) return;
+                        setState(() => loading = true);
+                        try {
+                          await FirebaseFirestore.instance.collection('config').doc('appVersion').delete();
+                          if (ctx.mounted) {
+                            Navigator.pop(ctx);
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(content: Text('앱 버전 등록 취소됨'), backgroundColor: AppColors.ok),
+                            );
+                          }
+                        } catch (e) {
+                          setState(() => loading = false);
+                          if (ctx.mounted) {
+                            ScaffoldMessenger.of(ctx).showSnackBar(SnackBar(content: Text('취소 실패: $e')));
+                          }
+                        }
+                      },
+                style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+                child: const Text('삭제'),
+              ),
             TextButton(onPressed: loading ? null : () => Navigator.pop(ctx), child: const Text('취소')),
             FilledButton(
               onPressed: loading

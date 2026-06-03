@@ -89,30 +89,21 @@ class HomePage extends ConsumerWidget {
                         ),
                       );
                     }
-                    final isManager = user?.isManager ?? false;
-                    if (isManager) {
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const _SectionTitle('다가오는 청소'),
-                          const SizedBox(height: 10),
-                          Expanded(
-                            child: _BranchList(
-                              branches: loadedBranches,
-                              cleanings: cleaningsAsync.valueOrNull ?? const <CleaningModel>[],
-                              myUid: user?.uid,
-                            ),
+                    // 매니저·실장·청소원 모두 — 호점별 가장 가까운 청소 1건씩 표시.
+                    // (자기 작업이면 _TaskCard가 '내 작업' 배지로 구분해서 보여줌)
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        const _SectionTitle('다가오는 청소'),
+                        const SizedBox(height: 10),
+                        Expanded(
+                          child: _BranchList(
+                            branches: loadedBranches,
+                            cleanings: cleaningsAsync.valueOrNull ?? const <CleaningModel>[],
+                            myUid: user?.uid,
                           ),
-                        ],
-                      );
-                    }
-                    final allCleanings = cleaningsAsync.valueOrNull ?? const <CleaningModel>[];
-                    final myCleanings = user == null
-                        ? const <CleaningModel>[]
-                        : allCleanings.where((c) => c.assigneeUid == user.uid).toList();
-                    return _TimelineView(
-                      branches: loadedBranches,
-                      cleanings: myCleanings,
+                        ),
+                      ],
                     );
                   },
                 ),

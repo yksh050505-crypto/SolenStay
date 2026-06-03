@@ -1,4 +1,3 @@
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -849,40 +848,19 @@ class _CompletedReportCard extends StatelessWidget {
                       maxLines: 1, overflow: TextOverflow.ellipsis,
                     ),
                   ),
+                  // 사진 개수 표시 (실제 사진은 카드 탭 시 상세에서 확인)
+                  if (photoCount > 0) ...[
+                    const Icon(Icons.photo_library_outlined, size: 13, color: AppColors.muted),
+                    const SizedBox(width: 3),
+                    Text(
+                      '$photoCount',
+                      style: const TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(width: 6),
+                  ],
                   const Icon(Icons.chevron_right, color: AppColors.dim, size: 18),
                 ],
               ),
-              // 사진 썸네일 영역
-              if (photoCount > 0) ...[
-                const SizedBox(height: 10),
-                SizedBox(
-                  height: 84,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: cleaning.photoUrls.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 6),
-                    itemBuilder: (_, i) => ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: CachedNetworkImage(
-                        imageUrl: cleaning.photoUrls[i],
-                        width: 84,
-                        height: 84,
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => Container(
-                          width: 84, height: 84, color: AppColors.line,
-                          alignment: Alignment.center,
-                          child: const SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2)),
-                        ),
-                        errorWidget: (_, __, ___) => Container(
-                          width: 84, height: 84, color: AppColors.line,
-                          alignment: Alignment.center,
-                          child: const Icon(Icons.broken_image_outlined, size: 20, color: AppColors.dim),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
               // 메모
               if (hasMemo) ...[
                 const SizedBox(height: 8),

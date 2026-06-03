@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../main.dart' show kPrefAutoLogin;
 import '../../core/theme.dart';
 import '../../core/fcm.dart';
 import '../../core/error_messages.dart';
@@ -23,12 +25,18 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
   bool _loading = false;
   String? _error;
   bool _adminMode = false; // false: 청소원 / true: 매니저·실장
+  bool _autoLogin = false; // 이 기기에서 자동 로그인 유지 여부
   Future<List<String>>? _candidatesFuture; // 캐시: _adminMode 바뀔 때만 재호출
 
   @override
   void initState() {
     super.initState();
     _candidatesFuture = ref.read(functionsServiceProvider).listLoginCandidates(adminOnly: _adminMode);
+    // SharedPreferences에서 현재 자동 로그인 설정 읽어옴 (기본 false)
+    SharedPreferences.getInstance().then((prefs) {
+      if (!mounted) return;
+      setState(() => _autoLogin = prefs.getBool(kPrefAutoLogin) ?? false);
+    });
   }
 
   void _reloadCandidates() {
@@ -65,6 +73,11 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
       final cred = await FirebaseAuth.instance.signInWithCustomToken(token);
       // 토큰 강제 새로고침 - Custom Claims가 Firestore 요청에 즉시 반영되도록
       await cred.user?.getIdTokenResult(true);
+      // 사용자가 선택한 자동 로그인 설정을 디바이스에 저장
+      try {
+        final prefs = await SharedPreferences.getInstance();
+        await prefs.setBool(kPrefAutoLogin, _autoLogin);
+      } catch (_) {}
       // FCM 토큰 등록 (권한 요청 + 서버에 토큰 저장)
       // ignore: unawaited_futures
       initFcmForUser(fn);
@@ -401,7 +414,46 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                     },
                     onSubmitted: (_) => _submit(),
                   ),
-                  const SizedBox(height: 14),
+                  const SizedBox(height: 10),
+
+                  // 자동 로그인 체크박스 — 이 기기에서 다음 시작 시 PIN 생략
+                  InkWell(
+                    onTap: _loading
+                        ? null
+                        : () => setState(() => _autoLogin = !_autoLogin),
+                    borderRadius: BorderRadius.circular(8),
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                      child: Row(
+                        children: [
+                          SizedBox(
+                            width: 22,
+                            height: 22,
+                            child: Checkbox(
+                              value: _autoLogin,
+                              onChanged: _loading
+                                  ? null
+                                  : (v) => setState(() => _autoLogin = v ?? false),
+                              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                              visualDensity: VisualDensity.compact,
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          const Expanded(
+                            child: Text(
+                              '이 기기에서 자동 로그인',
+                              style: TextStyle(
+                                fontSize: 13,
+                                fontWeight: FontWeight.w500,
+                                color: AppColors.text,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 6),
 
                   // 로그인 버튼 (수동 제출용)
                   SizedBox(

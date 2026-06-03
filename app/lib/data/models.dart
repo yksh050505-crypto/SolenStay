@@ -10,6 +10,9 @@ class UserModel {
   final List<String> fcmTokens;
   final String? photoUrl;
   final String language; // 'ko' | 'en'
+  /// 알림 수신 설정 — 키: 'newCleaning' | 'managerNotice' | 'scheduleChange'
+  /// 값이 false면 해당 종류 알림 차단. 기본값(없으면) true로 간주.
+  final Map<String, bool> notificationPrefs;
 
   UserModel({
     required this.uid,
@@ -20,7 +23,10 @@ class UserModel {
     required this.fcmTokens,
     this.photoUrl,
     this.language = 'ko',
+    this.notificationPrefs = const {},
   });
+
+  bool prefEnabled(String key) => notificationPrefs[key] ?? true;
 
   bool get isManager => role == 'manager';
   bool get isChief => role == 'chief';
@@ -38,6 +44,9 @@ class UserModel {
       fcmTokens: (d['fcmTokens'] as List<dynamic>?)?.cast<String>() ?? const [],
       photoUrl: d['photoUrl'] as String?,
       language: d['language'] as String? ?? 'ko',
+      notificationPrefs: (d['notificationPrefs'] as Map<String, dynamic>?)
+              ?.map((k, v) => MapEntry(k, v as bool? ?? true)) ??
+          const {},
     );
   }
 }

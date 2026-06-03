@@ -13,10 +13,10 @@ import '../../data/models.dart';
 import '../../data/services.dart';
 import '../shared/bottom_nav.dart';
 
-/// 알림 토글 상태 (로컬 상태)
-final _notiNewCleaningProvider = StateProvider<bool>((_) => true);
-final _notiManagerProvider = StateProvider<bool>((_) => true);
-final _notiScheduleProvider = StateProvider<bool>((_) => false);
+/// 알림 prefs 키 — 백엔드와 동일하게 유지
+const _kPrefNewCleaning = 'newCleaning';
+const _kPrefManagerNotice = 'managerNotice';
+const _kPrefScheduleChange = 'scheduleChange';
 
 /// ⑥ 내정보 (프로필/설정) - 목업 디자인 적용
 class ProfilePage extends ConsumerWidget {
@@ -95,25 +95,25 @@ class ProfilePage extends ConsumerWidget {
             ),
             const SizedBox(height: 14),
 
-            // 알림
+            // 알림 — 각 토글이 사용자 prefs(notificationPrefs.{key})에 저장됨
             _SectionTitle(l.t('알림', 'Notifications')),
             _toggleItem(
               emoji: '🔔',
               label: l.t('새 청소 일정 알림', 'New cleaning alerts'),
-              value: ref.watch(_notiNewCleaningProvider),
-              onChanged: (v) => ref.read(_notiNewCleaningProvider.notifier).state = v,
+              value: user?.prefEnabled(_kPrefNewCleaning) ?? true,
+              onChanged: user == null ? null : (v) => _toggleNotifPref(context, ref, _kPrefNewCleaning, v),
             ),
             _toggleItem(
               emoji: '📣',
               label: l.t('매니저 공지사항', 'Manager notices'),
-              value: ref.watch(_notiManagerProvider),
-              onChanged: (v) => ref.read(_notiManagerProvider.notifier).state = v,
+              value: user?.prefEnabled(_kPrefManagerNotice) ?? true,
+              onChanged: user == null ? null : (v) => _toggleNotifPref(context, ref, _kPrefManagerNotice, v),
             ),
             _toggleItem(
               emoji: '📅',
               label: l.t('일정 변경 알림', 'Schedule change alerts'),
-              value: ref.watch(_notiScheduleProvider),
-              onChanged: (v) => ref.read(_notiScheduleProvider.notifier).state = v,
+              value: user?.prefEnabled(_kPrefScheduleChange) ?? true,
+              onChanged: user == null ? null : (v) => _toggleNotifPref(context, ref, _kPrefScheduleChange, v),
             ),
             const SizedBox(height: 14),
 
@@ -406,11 +406,25 @@ class ProfilePage extends ConsumerWidget {
     );
   }
 
+  /// 알림 prefs 한 항목 토글 → 백엔드 저장.
+  /// currentUserProvider가 자동 갱신되므로 UI는 별도 setState 불필요.
+  Future<void> _toggleNotifPref(BuildContext context, WidgetRef ref, String key, bool value) async {
+    try {
+      await ref.read(functionsServiceProvider).updateMyProfile(
+            notificationPrefs: {key: value},
+          );
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('설정 저장 실패: $e')));
+      }
+    }
+  }
+
   Widget _toggleItem({
     required String emoji,
     required String label,
     required bool value,
-    required ValueChanged<bool> onChanged,
+    required ValueChanged<bool>? onChanged,
   }) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),

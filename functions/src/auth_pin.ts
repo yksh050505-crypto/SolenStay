@@ -214,7 +214,7 @@ export const deactivateUser = onCall({ region: REGION }, async (req) => {
  */
 export const updateMyProfile = onCall({ region: REGION }, async (req) => {
   const auth = requireAuth(req);
-  const { name, photoUrl, language } = req.data ?? {};
+  const { name, photoUrl, language, notificationPrefs } = req.data ?? {};
 
   const updates: Record<string, unknown> = {};
 
@@ -250,6 +250,20 @@ export const updateMyProfile = onCall({ region: REGION }, async (req) => {
       throw new HttpsError('invalid-argument', 'language must be ko or en');
     }
     updates.language = language;
+  }
+
+  if (notificationPrefs !== undefined) {
+    if (typeof notificationPrefs !== 'object' || notificationPrefs === null || Array.isArray(notificationPrefs)) {
+      throw new HttpsError('invalid-argument', 'notificationPrefs must be an object');
+    }
+    const allowedKeys = new Set(['newCleaning', 'managerNotice', 'scheduleChange']);
+    const sanitized: Record<string, boolean> = {};
+    for (const [k, v] of Object.entries(notificationPrefs as Record<string, unknown>)) {
+      if (!allowedKeys.has(k)) continue;
+      if (typeof v !== 'boolean') continue;
+      sanitized[k] = v;
+    }
+    updates.notificationPrefs = sanitized;
   }
 
   if (Object.keys(updates).length === 0) {

@@ -8,7 +8,7 @@
 
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onSchedule } from 'firebase-functions/v2/scheduler';
-import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentUpdated, onDocumentDeleted } from 'firebase-functions/v2/firestore';
 import * as admin from 'firebase-admin';
 import {
   REGION,
@@ -25,8 +25,18 @@ interface UserDoc {
   active: boolean;
 }
 
-/** 특정 역할 사용자들의 FCM 토큰 수집 */
-async function collectTokens(roles: Array<'manager' | 'chief' | 'cleaner'>): Promise<{ tokens: string[]; uids: string[] }> {
+/** 알림 prefs 키 — 클라이언트의 토글 키와 동일 */
+type NotifPrefKey = 'newCleaning' | 'managerNotice' | 'scheduleChange';
+
+/**
+ * 특정 역할 사용자들의 FCM 토큰 수집
+ * @param prefKey 알림 종류별 prefs 키 — 해당 사용자가 그 알림을 끄면(false) 제외.
+ *                기본값(없으면) 켜짐(true)으로 간주.
+ */
+async function collectTokens(
+  roles: Array<'manager' | 'chief' | 'cleaner'>,
+  prefKey?: NotifPrefKey,
+): Promise<{ tokens: string[]; uids: string[] }> {
   const db = admin.firestore();
   const tokens: string[] = [];
   const uids: string[] = [];
@@ -39,6 +49,10 @@ async function collectTokens(roles: Array<'manager' | 'chief' | 'cleaner'>): Pro
 
   for (const doc of snap.docs) {
     const u = doc.data() as UserDoc;
+    if (prefKey) {
+      const prefs = (u as { notificationPrefs?: Record<string, boolean> }).notificationPrefs;
+      if (prefs && prefs[prefKey] === false) continue; // 해당 알림 OFF면 제외
+    }
     if (Array.isArray(u.fcmTokens) && u.fcmTokens.length > 0) {
       tokens.push(...u.fcmTokens);
       uids.push(doc.id);
@@ -113,7 +127,7 @@ export const notifyUnassignedReminder = onSchedule(
       return;
     }
 
-    const { tokens, uids } = await collectTokens(['cleaner', 'chief', 'manager']);
+    const { tokens, uids } = await collectTokens(['cleaner', 'chief', 'manager'], 'newCleaning');
     const branchNames = new Map<string, string>();
     const branchesSnap = await db.collection('branches').get();
     branchesSnap.docs.forEach((d) => branchNames.set(d.id, (d.data().name as string) ?? d.id));
@@ -170,7 +184,8 @@ export const notifyNewReservation = onDocumentCreated(
     const branchName = (branchDoc.data()?.name as string) ?? r.branchId;
     const dateStr = r.checkOut.toDate().toLocaleDateString('ko-KR');
 
-    const { tokens, uids } = await collectTokens(['cleaner', 'chief']);
+    // 매니저·실장·청소원 모두 알림
+    const { tokens, uids } = await collectTokens(['cleaner', 'chief', 'manager'], 'newCleaning');
     if (tokens.length === 0) return;
 
     const result = await sendMulticast(
@@ -186,6 +201,99 @@ export const notifyNewReservation = onDocumentCreated(
       type: 'new_reservation',
       recipientUids: uids,
       payload: { cleaningId: event.params.reservationId, result },
+      sentAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  },
+);
+
+/**
+ * Firestore 트리거: 예약 변경 시(체크인/아웃·게스트명·인원 변경) 매니저·실장·청소원에게 푸시
+ * iCal 동기화로 인한 사소한 갱신은 ical_sync 단계에서 미변경 시 update하지 않으므로 트리거되지 않음.
+ */
+export const notifyReservationUpdated = onDocumentUpdated(
+  { region: REGION, document: 'reservations/{reservationId}' },
+  async (event) => {
+    const before = event.data?.before.data();
+    const after = event.data?.after.data();
+    if (!before || !after) return;
+
+    const beforeIn = (before.checkIn as admin.firestore.Timestamp).toDate().getTime();
+    const afterIn = (after.checkIn as admin.firestore.Timestamp).toDate().getTime();
+    const beforeOut = (before.checkOut as admin.firestore.Timestamp).toDate().getTime();
+    const afterOut = (after.checkOut as admin.firestore.Timestamp).toDate().getTime();
+    const datesChanged = beforeIn !== afterIn || beforeOut !== afterOut;
+    const nameChanged = (before.guestName ?? '') !== (after.guestName ?? '');
+    const countChanged = (before.guestCount ?? 0) !== (after.guestCount ?? 0);
+
+    if (!datesChanged && !nameChanged && !countChanged) return;
+
+    const db = admin.firestore();
+    const branchDoc = await db.collection('branches').doc(after.branchId).get();
+    const branchName = (branchDoc.data()?.name as string) ?? (after.branchId as string);
+
+    const fmt = (ts: admin.firestore.Timestamp) => ts.toDate().toLocaleDateString('ko-KR');
+    const changes: string[] = [];
+    if (datesChanged) {
+      changes.push(`${fmt(before.checkOut as admin.firestore.Timestamp)} → ${fmt(after.checkOut as admin.firestore.Timestamp)}`);
+    }
+    if (nameChanged) {
+      changes.push(`게스트: ${before.guestName ?? ''} → ${after.guestName ?? ''}`);
+    }
+    if (countChanged) {
+      changes.push(`인원: ${before.guestCount ?? 0} → ${after.guestCount ?? 0}`);
+    }
+
+    const { tokens, uids } = await collectTokens(['cleaner', 'chief', 'manager'], 'scheduleChange');
+    if (tokens.length === 0) return;
+
+    const result = await sendMulticast(
+      tokens,
+      {
+        title: '📝 일정 변경',
+        body: `${branchName} · ${after.guestName ?? ''} (${changes.join(', ')})`,
+      },
+      { type: 'reservation_updated', cleaningId: event.params.reservationId, branchId: after.branchId as string },
+    );
+
+    await db.collection('notifications').add({
+      type: 'reservation_updated',
+      recipientUids: uids,
+      payload: { cleaningId: event.params.reservationId, changes, result },
+      sentAt: admin.firestore.FieldValue.serverTimestamp(),
+    });
+  },
+);
+
+/**
+ * Firestore 트리거: 예약 삭제(취소) 시 매니저·실장·청소원에게 푸시
+ */
+export const notifyReservationDeleted = onDocumentDeleted(
+  { region: REGION, document: 'reservations/{reservationId}' },
+  async (event) => {
+    const r = event.data?.data();
+    if (!r) return;
+
+    const db = admin.firestore();
+    const branchDoc = await db.collection('branches').doc(r.branchId).get();
+    const branchName = (branchDoc.data()?.name as string) ?? (r.branchId as string);
+    const dateStr = (r.checkOut as admin.firestore.Timestamp).toDate().toLocaleDateString('ko-KR');
+
+    const { tokens, uids } = await collectTokens(['cleaner', 'chief', 'manager'], 'scheduleChange');
+    if (tokens.length === 0) return;
+
+    const result = await sendMulticast(
+      tokens,
+      {
+        title: '🗑 일정 취소',
+        body: `${branchName} ${dateStr} · ${r.guestName ?? ''}`,
+      },
+      { type: 'reservation_deleted', branchId: r.branchId as string },
+    );
+
+    await db.collection('notifications').add({
+      type: 'reservation_deleted',
+      recipientUids: uids,
+      payload: { reservationId: event.params.reservationId, result },
       sentAt: admin.firestore.FieldValue.serverTimestamp(),
     });
   },
@@ -273,11 +381,13 @@ export const createManagerNotice = onCall({ region: REGION }, async (req) => {
   // 작성자 본인은 제외
   const filteredUids = recipientUids.filter((uid) => uid !== auth.uid);
 
-  // 토큰 수집
+  // 토큰 수집 (managerNotice 알림이 OFF인 사용자는 푸시 제외)
   const tokens: string[] = [];
   for (const doc of usersSnap.docs) {
     if (doc.id === auth.uid) continue;
     const u = doc.data() as UserDoc;
+    const prefs = (u as { notificationPrefs?: Record<string, boolean> }).notificationPrefs;
+    if (prefs && prefs.managerNotice === false) continue;
     if (Array.isArray(u.fcmTokens) && u.fcmTokens.length > 0) {
       tokens.push(...u.fcmTokens);
     }

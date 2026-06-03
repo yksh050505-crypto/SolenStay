@@ -190,11 +190,13 @@ class FunctionsService {
     String? photoUrl,
     bool clearPhoto = false,
     String? language,
+    Map<String, bool>? notificationPrefs,
   }) async {
     await _fn.httpsCallable('updateMyProfile').call({
       if (name != null) 'name': name,
       if (clearPhoto) 'photoUrl': null else if (photoUrl != null) 'photoUrl': photoUrl,
       if (language != null) 'language': language,
+      if (notificationPrefs != null) 'notificationPrefs': notificationPrefs,
     });
   }
 

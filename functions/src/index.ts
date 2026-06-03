@@ -44,6 +44,8 @@ export {
 export {
   notifyUnassignedReminder,
   notifyNewReservation,
+  notifyReservationUpdated,
+  notifyReservationDeleted,
   registerFcmToken,
   unregisterFcmToken,
   createManagerNotice,

@@ -5,12 +5,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants.dart';
 import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/services.dart';
+import '../../main.dart' show kPrefAutoLogin;
 import '../shared/bottom_nav.dart';
 
 /// 알림 prefs 키 — 백엔드와 동일하게 유지
@@ -93,6 +95,8 @@ class ProfilePage extends ConsumerWidget {
               label: l.t('이름 / 프로필 사진', 'Name / Profile photo'),
               onTap: user == null ? null : () => _editProfileDialog(context, ref, user),
             ),
+            // 자동 로그인 토글 (디바이스별 SharedPreferences에 저장)
+            _AutoLoginToggle(l: l),
             const SizedBox(height: 14),
 
             // 알림 — 각 토글이 사용자 prefs(notificationPrefs.{key})에 저장됨
@@ -457,6 +461,94 @@ class ProfilePage extends ConsumerWidget {
 }
 
 /// 프로필 아바타 — 사진이 있으면 사진, 없으면 이름 첫 글자
+/// 디바이스별 자동 로그인 토글 — SharedPreferences에 'auto_login_enabled' 저장.
+/// 켜면 앱 시작 시 로그인 유지(자동 진입), 끄면(기본) 매번 PIN 로그인.
+class _AutoLoginToggle extends StatefulWidget {
+  final L10n l;
+  const _AutoLoginToggle({required this.l});
+  @override
+  State<_AutoLoginToggle> createState() => _AutoLoginToggleState();
+}
+
+class _AutoLoginToggleState extends State<_AutoLoginToggle> {
+  bool? _value;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    if (mounted) setState(() => _value = prefs.getBool(kPrefAutoLogin) ?? false);
+  }
+
+  Future<void> _set(bool v) async {
+    setState(() => _value = v);
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(kPrefAutoLogin, v);
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(v
+              ? widget.l.t('자동 로그인 켜짐 — 다음부터 앱 시작 시 바로 진입',
+                  'Auto sign-in ON — opens app directly next time')
+              : widget.l.t('자동 로그인 꺼짐 — 앱 시작 시 PIN 로그인 화면',
+                  'Auto sign-in OFF — PIN login required on each start')),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: AppColors.panel,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: AppColors.line),
+        ),
+        child: Row(
+          children: [
+            const Text('🔓', style: TextStyle(fontSize: 16)),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    widget.l.t('자동 로그인 (이 기기)', 'Auto sign-in (this device)'),
+                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.l.t('끄면 앱 시작 시마다 PIN 로그인', 'When off, PIN required on each app start'),
+                    style: const TextStyle(fontSize: 10, color: AppColors.muted),
+                  ),
+                ],
+              ),
+            ),
+            Switch(
+              value: _value ?? false,
+              onChanged: _value == null ? null : _set,
+              activeColor: Colors.white,
+              activeTrackColor: AppColors.branch1,
+              inactiveThumbColor: Colors.white,
+              inactiveTrackColor: AppColors.line,
+              materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _Avatar extends StatelessWidget {
   final String name;
   final String? photoUrl;

@@ -30,15 +30,23 @@ Future<void> initFcmForUser(FunctionsService fn) async {
   try {
     final messaging = FirebaseMessaging.instance;
 
-    final settings = await messaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
-
+    // 현재 권한 상태를 먼저 확인 — 이미 허용된 경우 다시 묻지 않음 (매번 팝업 뜨는 문제 방지)
+    NotificationSettings settings = await messaging.getNotificationSettings();
     if (settings.authorizationStatus == AuthorizationStatus.denied) {
-      debugPrint('[FCM] 권한 거부됨');
+      debugPrint('[FCM] 권한 거부됨 (브라우저 설정에서 해제 필요)');
       return;
+    }
+    if (settings.authorizationStatus != AuthorizationStatus.authorized) {
+      // 처음 요청이거나 'notDetermined' 상태에서만 권한 팝업 표시
+      settings = await messaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      if (settings.authorizationStatus == AuthorizationStatus.denied) {
+        debugPrint('[FCM] 권한 거부됨');
+        return;
+      }
     }
 
     String? token;

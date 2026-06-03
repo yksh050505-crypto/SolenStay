@@ -1,5 +1,6 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/foundation.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/services.dart';
 import 'app_navigator.dart';
@@ -30,23 +31,21 @@ Future<void> initFcmForUser(FunctionsService fn) async {
   try {
     final messaging = FirebaseMessaging.instance;
 
-    // 현재 권한 상태를 먼저 확인 — 이미 허용된 경우 다시 묻지 않음 (매번 팝업 뜨는 문제 방지)
+    // 알림 권한 요청은 디바이스/브라우저당 단 한 번만.
+    // SharedPreferences에 "이미 요청 시도했음" 플래그를 영구 저장 → 사용자 결정(허용/거부) 후엔
+    // 매 로그인마다 팝업이 다시 뜨지 않음. 권한 재요청은 사용자가 명시적으로(설정 등) 트리거할 때만.
+    final prefs = await SharedPreferences.getInstance();
+    const kAsked = 'fcm_permission_asked';
     NotificationSettings settings = await messaging.getNotificationSettings();
-    if (settings.authorizationStatus == AuthorizationStatus.denied) {
-      debugPrint('[FCM] 권한 거부됨 (브라우저 설정에서 해제 필요)');
-      return;
+    final alreadyAsked = prefs.getBool(kAsked) ?? false;
+    if (settings.authorizationStatus != AuthorizationStatus.authorized && !alreadyAsked) {
+      // 첫 1회만 권한 요청 — 결과와 무관하게 플래그 저장
+      settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
+      await prefs.setBool(kAsked, true);
     }
     if (settings.authorizationStatus != AuthorizationStatus.authorized) {
-      // 처음 요청이거나 'notDetermined' 상태에서만 권한 팝업 표시
-      settings = await messaging.requestPermission(
-        alert: true,
-        badge: true,
-        sound: true,
-      );
-      if (settings.authorizationStatus == AuthorizationStatus.denied) {
-        debugPrint('[FCM] 권한 거부됨');
-        return;
-      }
+      debugPrint('[FCM] 알림 권한 없음 (status=${settings.authorizationStatus})');
+      return;
     }
 
     String? token;

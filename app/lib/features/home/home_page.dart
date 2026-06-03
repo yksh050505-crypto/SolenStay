@@ -89,21 +89,34 @@ class HomePage extends ConsumerWidget {
                         ),
                       );
                     }
-                    // 매니저·실장·청소원 모두 — 호점별 가장 가까운 청소 1건씩 표시.
-                    // (자기 작업이면 _TaskCard가 '내 작업' 배지로 구분해서 보여줌)
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        const _SectionTitle('다가오는 청소'),
-                        const SizedBox(height: 10),
-                        Expanded(
-                          child: _BranchList(
-                            branches: loadedBranches,
-                            cleanings: cleaningsAsync.valueOrNull ?? const <CleaningModel>[],
-                            myUid: user?.uid,
+                    final isManager = user?.isManager ?? false;
+                    final allCleanings = cleaningsAsync.valueOrNull ?? const <CleaningModel>[];
+
+                    if (isManager) {
+                      // 매니저: 호점별 1건씩 (기존 동작 유지)
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          const _SectionTitle('다가오는 청소'),
+                          const SizedBox(height: 10),
+                          Expanded(
+                            child: _BranchList(
+                              branches: loadedBranches,
+                              cleanings: allCleanings,
+                              myUid: user?.uid,
+                            ),
                           ),
-                        ),
-                      ],
+                        ],
+                      );
+                    }
+
+                    // 청소원·실장:
+                    //  - "오늘의 청소" 섹션: 자기에게 배정된 오늘 작업
+                    //  - "다가오는 청소" 섹션: 호점별 가장 가까운 청소 1건씩 (1·2·3호점 다)
+                    return _CleanerHomeView(
+                      branches: loadedBranches,
+                      allCleanings: allCleanings,
+                      uid: user?.uid,
                     );
                   },
                 ),
@@ -116,7 +129,81 @@ class HomePage extends ConsumerWidget {
   }
 }
 
-/// 실장/청소원 전용 — 오늘의 청소 / 다가오는 청소(7일 이내)
+/// 청소원·실장 홈 뷰 — 상단 "오늘의 청소"(자기 작업) + 하단 "다가오는 청소"(호점별 1·2·3호점)
+class _CleanerHomeView extends ConsumerWidget {
+  final List<BranchModel> branches;
+  final List<CleaningModel> allCleanings;
+  final String? uid;
+  const _CleanerHomeView({
+    required this.branches,
+    required this.allCleanings,
+    required this.uid,
+  });
+
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reservations = ref.watch(upcomingReservationsProvider).valueOrNull ?? const <ReservationModel>[];
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
+    // 입실 게스트 매칭 (청소일 이후 같은 호점에서 가장 가까운 입실 예약)
+    ReservationModel? incomingOf(CleaningModel c) {
+      final cd = DateTime(c.scheduledDate.year, c.scheduledDate.month, c.scheduledDate.day);
+      ReservationModel? best;
+      for (final r in reservations) {
+        if (r.branchId != c.branchId) continue;
+        final inDay = DateTime(r.checkIn.year, r.checkIn.month, r.checkIn.day);
+        if (inDay.isBefore(cd)) continue;
+        if (best == null || r.checkIn.isBefore(best.checkIn)) best = r;
+      }
+      return best;
+    }
+
+    // 오늘의 청소 = 자기에게 배정된 오늘 작업
+    final todayMine = uid == null
+        ? const <CleaningModel>[]
+        : allCleanings.where((c) {
+            final d = DateTime(c.scheduledDate.year, c.scheduledDate.month, c.scheduledDate.day);
+            return c.assigneeUid == uid && _sameDay(d, today);
+          }).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SectionTitle('오늘의 청소'),
+        const SizedBox(height: 10),
+        if (todayMine.isEmpty)
+          Container(
+            padding: const EdgeInsets.symmetric(vertical: 18),
+            decoration: BoxDecoration(
+              color: AppColors.panel,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppColors.line),
+            ),
+            child: const Center(
+              child: Text('오늘 청소가 없습니다', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+            ),
+          )
+        else
+          ...todayMine.map((c) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _CleaningTaskCard(item: _TaskItem(cleaning: c, incoming: incomingOf(c)), branches: branches),
+              )),
+        const SizedBox(height: 22),
+        const _SectionTitle('다가오는 청소'),
+        const SizedBox(height: 10),
+        Expanded(
+          child: _BranchList(branches: branches, cleanings: allCleanings, myUid: uid),
+        ),
+      ],
+    );
+  }
+}
+
+/// 실장/청소원 전용 — 오늘의 청소 / 다가오는 청소(7일 이내) [구버전, 미사용]
 class _TimelineView extends ConsumerWidget {
   final List<BranchModel> branches;
   final List<CleaningModel> cleanings; // 이미 scheduledDate 오름차순

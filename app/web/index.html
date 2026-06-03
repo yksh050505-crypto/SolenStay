@@ -66,6 +66,31 @@
       var loader = document.getElementById('loading');
       if (loader) loader.remove();
     });
+    // 서비스 워커 강제 업데이트 정책
+    //  - 페이지 로드마다 + 5분마다 update() 호출 → 새 빌드 즉시 감지
+    //  - 새 SW가 설치되면 즉시 활성화 요청(SKIP_WAITING)
+    //  - 새 SW가 활성화되면 페이지 자동 1회 새로고침 → 사용자가 항상 최신 코드 사용
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.ready.then(function (reg) {
+        reg.update();
+        setInterval(function () { reg.update(); }, 5 * 60 * 1000);
+        reg.addEventListener('updatefound', function () {
+          var nw = reg.installing;
+          if (!nw) return;
+          nw.addEventListener('statechange', function () {
+            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
+              try { nw.postMessage({ type: 'SKIP_WAITING' }); } catch (_) {}
+            }
+          });
+        });
+      });
+      var __refreshing = false;
+      navigator.serviceWorker.addEventListener('controllerchange', function () {
+        if (__refreshing) return;
+        __refreshing = true;
+        window.location.reload();
+      });
+    }
   </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>

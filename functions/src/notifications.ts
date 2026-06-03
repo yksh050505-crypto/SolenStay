@@ -437,39 +437,46 @@ export const createManagerNotice = onCall({ region: REGION }, async (req) => {
  * @param data { notificationId: string, title?: string, body?: string }
  */
 export const updateManagerNotice = onCall({ region: REGION }, async (req) => {
-  const auth = requireManager(req);
-  const { notificationId, title, body } = req.data ?? {};
+  try {
+    const auth = requireManager(req);
+    const { notificationId, title, body } = req.data ?? {};
 
-  if (typeof notificationId !== 'string' || !notificationId) {
-    throw new HttpsError('invalid-argument', 'notificationId required');
-  }
+    if (typeof notificationId !== 'string' || !notificationId) {
+      throw new HttpsError('invalid-argument', 'notificationId required');
+    }
 
-  const db = admin.firestore();
-  const ref = db.collection('notifications').doc(notificationId);
-  const doc = await ref.get();
-  if (!doc.exists) {
-    throw new HttpsError('not-found', 'notification not found');
-  }
-  const data = doc.data()!;
-  if (data.type !== 'manager_notice') {
-    throw new HttpsError('failed-precondition', 'only manager_notice can be edited');
-  }
-  if (data.senderUid !== auth.uid) {
-    throw new HttpsError('permission-denied', 'only sender can edit');
-  }
+    const db = admin.firestore();
+    const ref = db.collection('notifications').doc(notificationId);
+    const doc = await ref.get();
+    if (!doc.exists) {
+      throw new HttpsError('not-found', 'notification not found');
+    }
+    const data = doc.data()!;
+    if (data.type !== 'manager_notice') {
+      throw new HttpsError('failed-precondition', 'only manager_notice can be edited');
+    }
+    if (data.senderUid !== auth.uid) {
+      throw new HttpsError('permission-denied', `only sender can edit (senderUid=${data.senderUid ?? '(none)'}, you=${auth.uid})`);
+    }
 
-  const updates: Record<string, unknown> = {
-    updatedAt: admin.firestore.FieldValue.serverTimestamp(),
-  };
-  if (typeof title === 'string' && title.trim().length > 0) {
-    updates.title = title.trim();
-  }
-  if (typeof body === 'string' && body.trim().length > 0) {
-    updates.body = body.trim();
-  }
+    const updates: Record<string, unknown> = {
+      updatedAt: admin.firestore.FieldValue.serverTimestamp(),
+    };
+    if (typeof title === 'string' && title.trim().length > 0) {
+      updates.title = title.trim();
+    }
+    if (typeof body === 'string' && body.trim().length > 0) {
+      updates.body = body.trim();
+    }
 
-  await ref.update(updates);
-  return { ok: true };
+    await ref.update(updates);
+    return { ok: true };
+  } catch (e) {
+    console.error('[updateManagerNotice] error:', e);
+    if (e instanceof HttpsError) throw e;
+    const msg = (e as { message?: string })?.message ?? String(e);
+    throw new HttpsError('internal', `internal: ${msg}`);
+  }
 });
 
 /**

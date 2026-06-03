@@ -35,6 +35,22 @@
         "source": "**",
         "destination": "/index.html"
       }
+    ],
+    "headers": [
+      {
+        "// 정적 자산(코드·폰트·아이콘 등)은 immutable 캐시 — Flutter 빌드마다 hash가 바뀌어 안전": "",
+        "source": "**/*.@(js|wasm|woff2|otf|ttf|png|jpg|jpeg|webp|svg)",
+        "headers": [
+          { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }
+        ]
+      },
+      {
+        "// 진입점(index.html)·SW·매니페스트는 항상 최신 확인": "",
+        "source": "/@(index.html|flutter_service_worker.js|flutter_bootstrap.js|manifest.json|version.json)",
+        "headers": [
+          { "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }
+        ]
+      }
     ]
   }
 }

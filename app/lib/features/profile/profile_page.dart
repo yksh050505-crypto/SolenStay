@@ -8,12 +8,14 @@ import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/constants.dart';
+import '../../core/fcm.dart';
 import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/services.dart';
 import '../../main.dart' show kPrefAutoLogin;
 import '../shared/bottom_nav.dart';
+import 'package:firebase_messaging/firebase_messaging.dart' show AuthorizationStatus;
 
 /// 알림 prefs 키 — 백엔드와 동일하게 유지
 const _kPrefNewCleaning = 'newCleaning';
@@ -101,6 +103,8 @@ class ProfilePage extends ConsumerWidget {
 
             // 알림 — 각 토글이 사용자 prefs(notificationPrefs.{key})에 저장됨
             _SectionTitle(l.t('알림', 'Notifications')),
+            // 권한 안 켜져있으면 활성화 카드 표시 (켜져있으면 숨김)
+            _NotificationPermissionCard(l: l),
             _toggleItem(
               emoji: '🔔',
               label: l.t('새 청소 일정 알림', 'New cleaning alerts'),
@@ -461,6 +465,99 @@ class ProfilePage extends ConsumerWidget {
 }
 
 /// 프로필 아바타 — 사진이 있으면 사진, 없으면 이름 첫 글자
+/// 알림 권한 카드 — 권한 없을 때만 활성화 버튼 표시.
+/// 자동 권한 요청은 안 하고(매번 팝업 뜨는 문제 방지), 사용자가 직접 누를 때만 요청.
+class _NotificationPermissionCard extends ConsumerStatefulWidget {
+  final L10n l;
+  const _NotificationPermissionCard({required this.l});
+  @override
+  ConsumerState<_NotificationPermissionCard> createState() => _NotificationPermissionCardState();
+}
+
+class _NotificationPermissionCardState extends ConsumerState<_NotificationPermissionCard> {
+  AuthorizationStatus? _status;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    final s = await currentNotificationStatus();
+    if (mounted) setState(() => _status = s);
+  }
+
+  Future<void> _enable() async {
+    setState(() => _busy = true);
+    final ok = await requestNotificationPermissionExplicit(ref.read(functionsServiceProvider));
+    if (!mounted) return;
+    await _refresh();
+    setState(() => _busy = false);
+    if (ok) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(widget.l.t('알림이 켜졌습니다', 'Notifications enabled')), backgroundColor: AppColors.ok),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(widget.l.t('알림 권한이 거부됐어요. 브라우저/폰 설정에서 직접 허용하세요',
+            'Permission denied. Please allow in browser/phone settings'))),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // 권한 이미 허용됐으면 카드 자체를 숨김
+    if (_status == AuthorizationStatus.authorized) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Material(
+        color: AppColors.warn.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: _busy ? null : _enable,
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(color: AppColors.warn.withOpacity(0.25)),
+            ),
+            child: Row(
+              children: [
+                const Text('🔕', style: TextStyle(fontSize: 16)),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        widget.l.t('알림이 꺼져 있습니다', 'Notifications are off'),
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.warn),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        widget.l.t('탭하여 알림 받기', 'Tap to enable'),
+                        style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_busy)
+                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                else
+                  const Icon(Icons.chevron_right, color: AppColors.warn, size: 20),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// 디바이스별 자동 로그인 토글 — SharedPreferences에 'auto_login_enabled' 저장.
 /// 켜면 앱 시작 시 로그인 유지(자동 진입), 끄면(기본) 매번 PIN 로그인.
 class _AutoLoginToggle extends StatefulWidget {

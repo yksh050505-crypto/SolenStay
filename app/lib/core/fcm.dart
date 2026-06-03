@@ -31,20 +31,11 @@ Future<void> initFcmForUser(FunctionsService fn) async {
   try {
     final messaging = FirebaseMessaging.instance;
 
-    // 알림 권한 요청은 디바이스/브라우저당 단 한 번만.
-    // SharedPreferences에 "이미 요청 시도했음" 플래그를 영구 저장 → 사용자 결정(허용/거부) 후엔
-    // 매 로그인마다 팝업이 다시 뜨지 않음. 권한 재요청은 사용자가 명시적으로(설정 등) 트리거할 때만.
-    final prefs = await SharedPreferences.getInstance();
-    const kAsked = 'fcm_permission_asked';
-    NotificationSettings settings = await messaging.getNotificationSettings();
-    final alreadyAsked = prefs.getBool(kAsked) ?? false;
-    if (settings.authorizationStatus != AuthorizationStatus.authorized && !alreadyAsked) {
-      // 첫 1회만 권한 요청 — 결과와 무관하게 플래그 저장
-      settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
-      await prefs.setBool(kAsked, true);
-    }
+    // 자동 권한 요청 안 함 — 일부 브라우저(삼성 인터넷 등)가 권한 저장을 매번 reset해서
+    // 자동 요청 시 팝업이 매 로그인마다 뜨는 문제. 사용자가 내정보 화면에서 명시적 액션으로 요청해야 함.
+    final settings = await messaging.getNotificationSettings();
     if (settings.authorizationStatus != AuthorizationStatus.authorized) {
-      debugPrint('[FCM] 알림 권한 없음 (status=${settings.authorizationStatus})');
+      debugPrint('[FCM] 알림 권한 없음 (status=${settings.authorizationStatus}) — 내정보에서 켤 수 있음');
       return;
     }
 
@@ -87,4 +78,34 @@ Future<void> initFcmForUser(FunctionsService fn) async {
   } catch (e) {
     debugPrint('[FCM] 초기화 오류: $e');
   }
+}
+
+/// 사용자가 명시적으로 알림 권한을 요청할 때 호출 (내정보 화면의 버튼 등).
+/// 반환값: 권한 부여 성공 여부.
+Future<bool> requestNotificationPermissionExplicit(FunctionsService fn) async {
+  try {
+    final messaging = FirebaseMessaging.instance;
+    final settings = await messaging.requestPermission(alert: true, badge: true, sound: true);
+    if (settings.authorizationStatus != AuthorizationStatus.authorized) {
+      return false;
+    }
+    String? token;
+    if (kIsWeb) {
+      token = await messaging.getToken(vapidKey: kVapidKey);
+    } else {
+      token = await messaging.getToken();
+    }
+    if (token == null || token.isEmpty) return false;
+    await fn.registerFcmToken(token);
+    return true;
+  } catch (e) {
+    debugPrint('[FCM] 명시적 권한 요청 오류: $e');
+    return false;
+  }
+}
+
+/// 현재 알림 권한 상태 (UI 표시용)
+Future<AuthorizationStatus> currentNotificationStatus() async {
+  final s = await FirebaseMessaging.instance.getNotificationSettings();
+  return s.authorizationStatus;
 }

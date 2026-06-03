@@ -11,12 +11,6 @@ service cloud.firestore {
       allow write: if isManager();
     }
 
-    // 앱 설정 (앱 버전 등) — 로그인 사용자 읽기, 쓰기는 매니저만
-    match /config/{doc} {
-      allow read: if isAuth();
-      allow write: if isManager();
-    }
-
     match /users/{uid} {
       // 본인 또는 매니저만 다른 사용자 정보 조회 가능 (실장 불가)
       allow read: if isAuth() && (request.auth.uid == uid || isManager());

@@ -279,17 +279,6 @@ final functionsServiceProvider = Provider<FunctionsService>(
   (ref) => FunctionsService(ref.watch(functionsProvider)),
 );
 
-// ===== 앱 버전 설정 (config/appVersion) =====
-/// 매니저가 등록한 최신 앱 버전 정보. {versionCode:int, versionName:String, apkUrl:String, forceUpdate:bool}
-final appVersionConfigProvider = StreamProvider<Map<String, dynamic>?>((ref) {
-  return ref
-      .watch(firestoreProvider)
-      .collection('config')
-      .doc('appVersion')
-      .snapshots()
-      .map((s) => s.data());
-});
-
 // ===== 프로필 사진 업로드 =====
 final storageProvider = Provider<FirebaseStorage>((ref) => FirebaseStorage.instance);
 

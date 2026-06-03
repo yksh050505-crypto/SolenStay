@@ -138,22 +138,24 @@ export const notifyUnassignedReminder = onSchedule(
       const branchName = branchNames.get(c.branchId) ?? c.branchId;
       const dateStr = (c.scheduledDate as admin.firestore.Timestamp).toDate().toLocaleDateString('ko-KR');
 
+      const title = '⚠ 청소 담당자 미지정';
+      const body = `${branchName} ${dateStr} 청소가 아직 미지정입니다. 참석해주세요.`;
       const result = await sendMulticast(
         tokens,
-        {
-          title: '⚠ 청소 담당자 미지정',
-          body: `${branchName} ${dateStr} 청소가 아직 미지정입니다. 참석해주세요.`,
-        },
+        { title, body },
         { type: 'unassigned_reminder', cleaningId: doc.id, branchId: c.branchId },
       );
 
-      // notifications 이력
+      // notifications 이력 (인앱 알림 목록용 표준 형식)
       const notifRef = db.collection('notifications').doc();
       batch.set(notifRef, {
         type: 'unassigned_reminder',
+        title,
+        body,
         recipientUids: uids,
-        payload: { cleaningId: doc.id, branchId: c.branchId, result },
-        sentAt: admin.firestore.FieldValue.serverTimestamp(),
+        data: { cleaningId: doc.id, branchId: c.branchId },
+        createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        readByUids: [],
       });
       batch.update(doc.ref, { reminderSent: true });
 
@@ -188,20 +190,22 @@ export const notifyNewReservation = onDocumentCreated(
     const { tokens, uids } = await collectTokens(['cleaner', 'chief', 'manager'], 'newCleaning');
     if (tokens.length === 0) return;
 
-    const result = await sendMulticast(
+    const title = '🆕 새 청소 일정';
+    const body = `${branchName} ${dateStr} · ${r.guestName} ${r.guestCount > 0 ? `(${r.guestCount}인)` : ''}`;
+    await sendMulticast(
       tokens,
-      {
-        title: '🆕 새 청소 일정',
-        body: `${branchName} ${dateStr} · ${r.guestName} ${r.guestCount > 0 ? `(${r.guestCount}인)` : ''}`,
-      },
+      { title, body },
       { type: 'new_reservation', cleaningId: event.params.reservationId, branchId: r.branchId },
     );
 
     await db.collection('notifications').add({
       type: 'new_reservation',
+      title,
+      body,
       recipientUids: uids,
-      payload: { cleaningId: event.params.reservationId, result },
-      sentAt: admin.firestore.FieldValue.serverTimestamp(),
+      data: { cleaningId: event.params.reservationId, branchId: r.branchId },
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      readByUids: [],
     });
   },
 );
@@ -246,20 +250,22 @@ export const notifyReservationUpdated = onDocumentUpdated(
     const { tokens, uids } = await collectTokens(['cleaner', 'chief', 'manager'], 'scheduleChange');
     if (tokens.length === 0) return;
 
-    const result = await sendMulticast(
+    const title = '📝 일정 변경';
+    const body = `${branchName} · ${after.guestName ?? ''} (${changes.join(', ')})`;
+    await sendMulticast(
       tokens,
-      {
-        title: '📝 일정 변경',
-        body: `${branchName} · ${after.guestName ?? ''} (${changes.join(', ')})`,
-      },
+      { title, body },
       { type: 'reservation_updated', cleaningId: event.params.reservationId, branchId: after.branchId as string },
     );
 
     await db.collection('notifications').add({
       type: 'reservation_updated',
+      title,
+      body,
       recipientUids: uids,
-      payload: { cleaningId: event.params.reservationId, changes, result },
-      sentAt: admin.firestore.FieldValue.serverTimestamp(),
+      data: { cleaningId: event.params.reservationId, branchId: after.branchId as string },
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      readByUids: [],
     });
   },
 );
@@ -281,20 +287,22 @@ export const notifyReservationDeleted = onDocumentDeleted(
     const { tokens, uids } = await collectTokens(['cleaner', 'chief', 'manager'], 'scheduleChange');
     if (tokens.length === 0) return;
 
-    const result = await sendMulticast(
+    const title = '🗑 일정 취소';
+    const body = `${branchName} ${dateStr} · ${r.guestName ?? ''}`;
+    await sendMulticast(
       tokens,
-      {
-        title: '🗑 일정 취소',
-        body: `${branchName} ${dateStr} · ${r.guestName ?? ''}`,
-      },
+      { title, body },
       { type: 'reservation_deleted', branchId: r.branchId as string },
     );
 
     await db.collection('notifications').add({
       type: 'reservation_deleted',
+      title,
+      body,
       recipientUids: uids,
-      payload: { reservationId: event.params.reservationId, result },
-      sentAt: admin.firestore.FieldValue.serverTimestamp(),
+      data: { reservationId: event.params.reservationId, branchId: r.branchId as string },
+      createdAt: admin.firestore.FieldValue.serverTimestamp(),
+      readByUids: [],
     });
   },
 );
@@ -378,13 +386,14 @@ export const createManagerNotice = onCall({ region: REGION }, async (req) => {
     .get();
 
   const recipientUids = usersSnap.docs.map((d) => d.id);
-  // 작성자 본인은 제외
-  const filteredUids = recipientUids.filter((uid) => uid !== auth.uid);
+  // 작성자 본인 포함 (전체 알림 목록에서도 보이게)
+  const filteredUids = recipientUids;
 
-  // 토큰 수집 (managerNotice 알림이 OFF인 사용자는 푸시 제외)
+  // 토큰 수집 (managerNotice 알림이 OFF인 사용자는 푸시 제외).
+  // 단 본인은 푸시 알림 자체는 굳이 안 보내도 됨(자기가 방금 보낸 거니까) — 인앱 목록엔 표시되도록 위에서 uids에 포함.
   const tokens: string[] = [];
   for (const doc of usersSnap.docs) {
-    if (doc.id === auth.uid) continue;
+    if (doc.id === auth.uid) continue; // 본인 푸시는 제외
     const u = doc.data() as UserDoc;
     const prefs = (u as { notificationPrefs?: Record<string, boolean> }).notificationPrefs;
     if (prefs && prefs.managerNotice === false) continue;

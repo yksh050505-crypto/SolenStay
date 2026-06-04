@@ -7,7 +7,6 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-import '../../core/constants.dart';
 import '../../core/fcm.dart';
 import '../../core/l10n.dart';
 import '../../core/theme.dart';
@@ -144,8 +143,12 @@ class ProfilePage extends ConsumerWidget {
             _menuItem(
               emoji: 'ℹ️',
               label: l.t('앱 버전', 'App version'),
-              trailing: const Text('v${AppConstants.appVersion}', style: TextStyle(color: AppColors.dim, fontSize: 12)),
-              onTap: () => _showAbout(context, l),
+              trailing: Consumer(builder: (ctx, ref, _) {
+                final info = ref.watch(appBuildInfoProvider).valueOrNull;
+                final text = info == null ? '...' : 'v${info.version}';
+                return Text(text, style: const TextStyle(color: AppColors.dim, fontSize: 12));
+              }),
+              onTap: () => _showAbout(context, ref, l),
             ),
             const SizedBox(height: 18),
 
@@ -328,11 +331,13 @@ class ProfilePage extends ConsumerWidget {
     }
   }
 
-  void _showAbout(BuildContext context, L10n l) {
+  void _showAbout(BuildContext context, WidgetRef ref, L10n l) {
+    final info = ref.read(appBuildInfoProvider).valueOrNull;
+    final ver = info == null ? '...' : 'v${info.version} (build ${info.buildNumber})';
     showAboutDialog(
       context: context,
       applicationName: 'SolenStay',
-      applicationVersion: 'v${AppConstants.appVersion}',
+      applicationVersion: ver,
       applicationLegalese: l.t('1·2·3호점 예약·청소 관리', 'Reservation & cleaning management'),
     );
   }

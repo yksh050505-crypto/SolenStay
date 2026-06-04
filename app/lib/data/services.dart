@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:cloud_functions/cloud_functions.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../core/constants.dart';
 import 'models.dart';
@@ -32,6 +33,24 @@ final currentUserProvider = StreamProvider<UserModel?>((ref) {
       .doc(user.uid)
       .snapshots()
       .map((snap) => snap.exists ? UserModel.fromDoc(snap) : null);
+});
+
+// ===== 현재 빌드의 표시 버전 (pubspec.yaml에서 자동) =====
+/// "0.2.1+4" 형태. UI 표시용 (v0.2.1). 한 번만 읽어 캐시.
+final appBuildInfoProvider = FutureProvider<PackageInfo>((ref) async {
+  return PackageInfo.fromPlatform();
+});
+
+// ===== 앱 버전 (config/appVersion) — 매니저가 새 APK 등록하면 변경됨 =====
+final appVersionProvider = StreamProvider<AppVersionModel?>((ref) {
+  final user = ref.watch(firebaseUserProvider).value;
+  if (user == null) return Stream.value(null);
+  return ref
+      .watch(firestoreProvider)
+      .collection('config')
+      .doc('appVersion')
+      .snapshots()
+      .map((s) => s.exists ? AppVersionModel.fromDoc(s) : null);
 });
 
 // ===== 호점 (인증된 사용자만) =====

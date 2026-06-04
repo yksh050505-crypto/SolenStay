@@ -40,6 +40,13 @@ service cloud.firestore {
       allow write: if isManager();
     }
 
+    match /config/{docId} {
+      // 모든 인증 사용자가 읽기 (앱 시작 시 버전 비교용)
+      allow read: if isAuth();
+      // 매니저만 쓰기 (앱 버전 등록)
+      allow write: if isManager();
+    }
+
     match /notifications/{id} {
       // 수신자이거나 작성자(매니저)가 읽기 가능
       allow read: if isAuth() && (

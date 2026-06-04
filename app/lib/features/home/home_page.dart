@@ -9,6 +9,7 @@ import '../../data/services.dart';
 import '../cleaning_detail/cleaning_detail_page.dart' show reservationProvider;
 import '../notifications/notifications_page.dart' show unreadNotificationCountProvider;
 import '../shared/bottom_nav.dart';
+import '../update/update_checker.dart';
 
 /// ② 다가오는 청소 (홈) — 호점별로 가장 가까운 체크아웃 청소 표시
 class HomePage extends ConsumerWidget {
@@ -28,7 +29,10 @@ class HomePage extends ConsumerWidget {
     return Scaffold(
       bottomNavigationBar: const AppBottomNav(active: BottomTab.home),
       body: SafeArea(
-        child: Padding(
+        child: Stack(children: [
+          // 화면에는 보이지 않지만, 마운트되면 한 번만 새 버전을 체크
+          const UpdateChecker(),
+          Padding(
           padding: const EdgeInsets.fromLTRB(20, 16, 20, 0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -124,6 +128,7 @@ class HomePage extends ConsumerWidget {
             ],
           ),
         ),
+        ]),
       ),
     );
   }

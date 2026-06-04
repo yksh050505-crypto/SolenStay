@@ -43,3 +43,7 @@ Thumbs.db
 
 # 로컬 안드로이드 SDK·JDK 다운로드 (포터블)
 androidbuild/
+
+# 임시 빌드 로그
+flutter_run*.err
+flutter_run*.log

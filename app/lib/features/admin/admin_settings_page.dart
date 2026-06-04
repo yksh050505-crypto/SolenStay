@@ -1,4 +1,7 @@
+import 'dart:typed_data';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +14,7 @@ import '../../data/models.dart';
 import '../../data/services.dart';
 import '../manager/manager_dashboard_page.dart' show allUsersProvider;
 import '../notifications/notifications_page.dart' show NotificationItem, sentNoticesProvider;
+import 'apk_picker_stub.dart' if (dart.library.js_interop) 'apk_picker_web.dart';
 
 /// 관리자 설정 (매니저 전용)
 /// - 사용자 추가/관리
@@ -161,6 +165,12 @@ class AdminSettingsPage extends ConsumerWidget {
             const _SectionHeader(title: '호점 동기화 (iCal)'),
             const SizedBox(height: 10),
             const _BranchSyncSection(),
+            const SizedBox(height: 24),
+
+            // 앱 버전 등록 (Android APK 업데이트 알림용)
+            const _SectionHeader(title: '앱 버전 (Android)'),
+            const SizedBox(height: 10),
+            const _AppVersionSection(),
             const SizedBox(height: 24),
 
             // 사용자 관리 섹션
@@ -511,6 +521,378 @@ class AdminSettingsPage extends ConsumerWidget {
 }
 
 /// 호점별 iCal 동기화 주소 관리 — 매니저가 각 호점의 Google Calendar iCal URL을 연결.
+/// 앱 버전 등록 섹션 (Android APK 업데이트 알림용)
+/// - 현재 등록된 최신 버전 표시
+/// - "새 버전 등록" → 다이얼로그 (버전, APK URL, 변경 내용, 필수 여부)
+class _AppVersionSection extends ConsumerWidget {
+  const _AppVersionSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final asyncVer = ref.watch(appVersionProvider);
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.panel,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.line),
+      ),
+      child: asyncVer.when(
+        loading: () => const SizedBox(height: 60, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+        error: (e, _) => Text('불러오기 실패: $e', style: const TextStyle(color: AppColors.danger)),
+        data: (v) {
+          final hasVersion = v != null && v.latest.isNotEmpty;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 36,
+                    height: 36,
+                    decoration: BoxDecoration(
+                      color: AppColors.branch1.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: const Icon(Icons.system_update, color: AppColors.branch1, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          hasVersion ? '최신 버전: ${v.latest}  (code ${v.latestCode})' : '등록된 버전 없음',
+                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          hasVersion && v.mandatory ? '필수 업데이트 ON' : '선택적 업데이트',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: hasVersion && v.mandatory ? AppColors.danger : AppColors.muted,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              if (hasVersion && v.releaseNotes.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.bg,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(v.releaseNotes, style: const TextStyle(fontSize: 12, color: AppColors.text)),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: () => _showVersionDialog(context, ref, v),
+                      icon: const Icon(Icons.upload, size: 16),
+                      label: const Text('새 버전 등록'),
+                    ),
+                  ),
+                  if (hasVersion) ...[
+                    const SizedBox(width: 8),
+                    OutlinedButton.icon(
+                      onPressed: () => _confirmUnregister(context, ref),
+                      icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.danger),
+                      label: const Text('등록 취소', style: TextStyle(color: AppColors.danger)),
+                      style: OutlinedButton.styleFrom(
+                        side: const BorderSide(color: AppColors.danger),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Future<void> _confirmUnregister(BuildContext context, WidgetRef ref) async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('버전 등록 취소'),
+        content: const Text(
+          'Firestore 의 config/appVersion 문서를 삭제합니다.\n'
+          '이후 어떤 기기에서도 업데이트 다이얼로그가 더 이상 표시되지 않습니다.\n\n'
+          '계속할까요?',
+          style: TextStyle(fontSize: 13),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('취소')),
+          FilledButton(
+            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+    if (ok != true) return;
+    try {
+      await ref.read(firestoreProvider).collection('config').doc('appVersion').delete();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('버전 등록이 취소되었습니다')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('취소 실패: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _showVersionDialog(BuildContext context, WidgetRef ref, AppVersionModel? current) async {
+    final versionCtrl = TextEditingController(text: current?.latest ?? '');
+    final codeCtrl = TextEditingController(text: current != null && current.latestCode > 0 ? '${current.latestCode + 1}' : '2');
+    final urlCtrl = TextEditingController(text: current?.apkUrl ?? '');
+    final notesCtrl = TextEditingController(text: '');
+    bool mandatory = current?.mandatory ?? false;
+    bool uploading = false;
+    double uploadProgress = 0;
+    String? uploadFileName;
+    String? uploadError;
+    final hasExisting = current != null && current.latest.isNotEmpty;
+
+    final ok = await showDialog<String?>(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        Future<void> pickAndUpload() async {
+          setLocal(() {
+            uploadError = null;
+          });
+          try {
+            final picked = await pickApkFile();
+            if (picked == null) return;
+            final bytes = Uint8List.fromList(picked.bytes);
+            final ver = versionCtrl.text.trim().isEmpty ? 'unknown' : versionCtrl.text.trim();
+            final safeVer = ver.replaceAll(RegExp(r'[^A-Za-z0-9._-]'), '_');
+            final path = 'apk/SolenStay-$safeVer.apk';
+
+            setLocal(() {
+              uploading = true;
+              uploadProgress = 0;
+              uploadFileName = picked.name;
+            });
+
+            final storageRef = FirebaseStorage.instance.ref(path);
+            final task = storageRef.putData(
+              bytes,
+              SettableMetadata(contentType: 'application/vnd.android.package-archive'),
+            );
+            task.snapshotEvents.listen((snap) {
+              if (snap.totalBytes > 0) {
+                setLocal(() => uploadProgress = snap.bytesTransferred / snap.totalBytes);
+              }
+            });
+            await task;
+            final url = await storageRef.getDownloadURL();
+            setLocal(() {
+              urlCtrl.text = url;
+              uploading = false;
+              uploadProgress = 1;
+            });
+          } catch (e) {
+            setLocal(() {
+              uploading = false;
+              uploadError = '$e';
+            });
+          }
+        }
+
+        return AlertDialog(
+          title: const Text('새 버전 등록'),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextField(
+                  controller: versionCtrl,
+                  decoration: const InputDecoration(labelText: '버전 (예: 0.2.1)', isDense: true),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: codeCtrl,
+                  decoration: const InputDecoration(labelText: '버전 코드 (정수, 비교 기준)', isDense: true),
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                ),
+                const SizedBox(height: 10),
+                // APK 업로드 영역
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.bg,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: AppColors.line),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      Row(
+                        children: [
+                          const Icon(Icons.android, size: 18, color: AppColors.branch1),
+                          const SizedBox(width: 6),
+                          const Expanded(
+                            child: Text('APK 파일',
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.muted)),
+                          ),
+                          TextButton.icon(
+                            onPressed: uploading ? null : pickAndUpload,
+                            icon: const Icon(Icons.upload_file, size: 14),
+                            label: const Text('파일 선택', style: TextStyle(fontSize: 12)),
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              minimumSize: Size.zero,
+                              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (uploading) ...[
+                        const SizedBox(height: 6),
+                        LinearProgressIndicator(value: uploadProgress > 0 ? uploadProgress : null),
+                        const SizedBox(height: 4),
+                        Text(
+                          uploadFileName == null
+                              ? '${(uploadProgress * 100).toStringAsFixed(0)}%'
+                              : '$uploadFileName  ·  ${(uploadProgress * 100).toStringAsFixed(0)}%',
+                          style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                        ),
+                      ],
+                      if (uploadError != null) ...[
+                        const SizedBox(height: 4),
+                        Text(uploadError!,
+                            style: const TextStyle(fontSize: 11, color: AppColors.danger)),
+                      ],
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: urlCtrl,
+                  decoration: const InputDecoration(
+                    labelText: 'APK 다운로드 URL',
+                    isDense: true,
+                    hintText: 'https://… (파일 선택하면 자동 채워짐)',
+                  ),
+                  keyboardType: TextInputType.url,
+                  maxLines: 2,
+                  minLines: 1,
+                ),
+                const SizedBox(height: 10),
+                TextField(
+                  controller: notesCtrl,
+                  decoration: const InputDecoration(labelText: '변경 내용 (선택)', isDense: true),
+                  maxLines: 3,
+                  minLines: 2,
+                ),
+                const SizedBox(height: 10),
+                SwitchListTile.adaptive(
+                  value: mandatory,
+                  onChanged: (v) => setLocal(() => mandatory = v),
+                  title: const Text('필수 업데이트', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                  subtitle: const Text('켜면 다이얼로그 닫기 불가', style: TextStyle(fontSize: 11)),
+                  contentPadding: EdgeInsets.zero,
+                  dense: true,
+                ),
+              ],
+            ),
+          ),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+          actions: [
+            Row(
+              children: [
+                if (hasExisting)
+                  TextButton.icon(
+                    onPressed: uploading ? null : () => Navigator.of(ctx).pop('delete'),
+                    icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.danger),
+                    label: const Text('현재 등록 삭제', style: TextStyle(color: AppColors.danger, fontSize: 12)),
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      minimumSize: Size.zero,
+                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                    ),
+                  ),
+                const Spacer(),
+                TextButton(
+                  onPressed: uploading ? null : () => Navigator.of(ctx).pop(null),
+                  child: const Text('취소'),
+                ),
+                const SizedBox(width: 4),
+                FilledButton(
+                  onPressed: uploading ? null : () => Navigator.of(ctx).pop('save'),
+                  child: const Text('등록'),
+                ),
+              ],
+            ),
+          ],
+        );
+      }),
+    );
+
+    if (ok == null) return;
+
+    if (ok == 'delete') {
+      await _confirmUnregister(context, ref);
+      return;
+    }
+
+    final version = versionCtrl.text.trim();
+    final code = int.tryParse(codeCtrl.text.trim()) ?? 0;
+    final url = urlCtrl.text.trim();
+    if (version.isEmpty || code <= 0 || url.isEmpty) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('버전 / 코드 / URL 은 필수입니다')),
+        );
+      }
+      return;
+    }
+
+    try {
+      final model = AppVersionModel(
+        latest: version,
+        latestCode: code,
+        apkUrl: url,
+        releaseNotes: notesCtrl.text.trim(),
+        mandatory: mandatory,
+      );
+      await ref.read(firestoreProvider).collection('config').doc('appVersion').set(model.toMap());
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('버전 $version 등록 완료')),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('등록 실패: $e')),
+        );
+      }
+    }
+  }
+}
+
 class _BranchSyncSection extends ConsumerWidget {
   const _BranchSyncSection();
 

@@ -10,7 +10,8 @@ plugins {
 
 android {
     namespace = "com.solenstay.app"
-    compileSdk = 35
+    // url_launcher가 끌어오는 androidx.browser 1.9.0 이 compileSdk 36 을 요구
+    compileSdk = 36
     ndkVersion = "27.0.12077973"
 
     compileOptions {
@@ -27,8 +28,9 @@ android {
         minSdk = flutter.minSdkVersion
         multiDexEnabled = true
         targetSdk = 34
-        versionCode = 1
-        versionName = "0.1.0"
+        // pubspec.yaml의 version 필드 한 곳만 바꾸면 됨 (예: 0.1.1+2)
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
     }
 
     buildTypes {

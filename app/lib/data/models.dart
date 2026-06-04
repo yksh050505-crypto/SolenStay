@@ -203,3 +203,44 @@ class CleaningModel {
     );
   }
 }
+
+/// 앱 버전 (Firestore: config/appVersion)
+/// 매니저가 새 APK 업로드 후 등록 → 모든 클라이언트가 시작 시 비교 → 다이얼로그
+class AppVersionModel {
+  final String latest;       // 예: "0.2.0" — 표시·기록용
+  final int latestCode;      // 정수 비교 기준 (pubspec.yaml의 buildNumber와 동일)
+  final String apkUrl;       // 다운로드 링크 (구글 드라이브 / Firebase Storage / GitHub Releases)
+  final String releaseNotes; // 변경 내용 (Korean)
+  final bool mandatory;      // true면 다이얼로그 닫기 불가
+  final DateTime? updatedAt;
+
+  const AppVersionModel({
+    required this.latest,
+    required this.latestCode,
+    required this.apkUrl,
+    this.releaseNotes = '',
+    this.mandatory = false,
+    this.updatedAt,
+  });
+
+  factory AppVersionModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final d = doc.data() ?? const {};
+    return AppVersionModel(
+      latest: d['latest'] as String? ?? '',
+      latestCode: (d['latestCode'] as num?)?.toInt() ?? 0,
+      apkUrl: d['apkUrl'] as String? ?? '',
+      releaseNotes: d['releaseNotes'] as String? ?? '',
+      mandatory: d['mandatory'] as bool? ?? false,
+      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate(),
+    );
+  }
+
+  Map<String, dynamic> toMap() => {
+        'latest': latest,
+        'latestCode': latestCode,
+        'apkUrl': apkUrl,
+        'releaseNotes': releaseNotes,
+        'mandatory': mandatory,
+        'updatedAt': FieldValue.serverTimestamp(),
+      };
+}

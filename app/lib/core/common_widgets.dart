@@ -18,8 +18,8 @@ class AppLoader extends StatelessWidget {
             child: const CircularProgressIndicator(strokeWidth: 2.5),
           ),
           if (label != null) ...[
-            const SizedBox(height: 10),
-            Text(label!, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+            SizedBox(height: 10),
+            Text(label!, style: TextStyle(color: context.brand.muted, fontSize: 12)),
           ],
         ],
       ),
@@ -51,19 +51,19 @@ class EmptyState extends StatelessWidget {
           Container(
             width: 64, height: 64,
             decoration: BoxDecoration(
-              color: AppColors.dim.withOpacity(0.1),
+              color: context.brand.dim.withOpacity(0.1),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, size: 30, color: AppColors.dim),
+            child: Icon(icon, size: 30, color: context.brand.dim),
           ),
-          const SizedBox(height: 14),
-          Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.text)),
+          SizedBox(height: 14),
+          Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.brand.text)),
           if (subtitle != null) ...[
-            const SizedBox(height: 4),
-            Text(subtitle!, textAlign: TextAlign.center, style: const TextStyle(fontSize: 12, color: AppColors.muted)),
+            SizedBox(height: 4),
+            Text(subtitle!, textAlign: TextAlign.center, style: TextStyle(fontSize: 12, color: context.brand.muted)),
           ],
           if (action != null) ...[
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             action!,
           ],
         ],
@@ -89,13 +89,13 @@ class AppErrorBox extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.error_outline, color: AppColors.danger, size: 20),
-          const SizedBox(width: 10),
+          Icon(Icons.error_outline, color: AppColors.danger, size: 20),
+          SizedBox(width: 10),
           Expanded(
-            child: Text(message, style: const TextStyle(color: AppColors.danger, fontSize: 12, fontWeight: FontWeight.w600)),
+            child: Text(message, style: TextStyle(color: AppColors.danger, fontSize: 12, fontWeight: FontWeight.w600)),
           ),
           if (onRetry != null)
-            TextButton(onPressed: onRetry, child: const Text('다시 시도', style: TextStyle(fontSize: 12))),
+            TextButton(onPressed: onRetry, child: Text('다시 시도', style: TextStyle(fontSize: 12))),
         ],
       ),
     );

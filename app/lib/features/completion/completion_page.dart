@@ -44,16 +44,16 @@ class _CompletionPageState extends ConsumerState<CompletionPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('완료 보고'),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
+        title: Text('완료 보고'),
+        leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: () => context.pop()),
       ),
       bottomNavigationBar: const AppBottomNav(active: BottomTab.home),
       body: cleaningAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('오류: $e')),
         data: (cleaning) {
           if (cleaning == null) {
-            return const Center(child: Text('청소 작업을 찾을 수 없습니다.'));
+            return Center(child: Text('청소 작업을 찾을 수 없습니다.'));
           }
           if (cleaning.isCompleted) {
             return _CompletedView(cleaning: cleaning, branches: branches);
@@ -79,25 +79,25 @@ class _CompletionPageState extends ConsumerState<CompletionPage> {
               // 호점 + 날짜 (중앙 정렬)
               Column(
                 children: [
-                  Text(branch.name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
-                  const SizedBox(height: 4),
+                  Text(branch.name, style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800)),
+                  SizedBox(height: 4),
                   Text(
                     DateFormat('yyyy-MM-dd (E)', 'ko').format(cleaning.scheduledDate),
-                    style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                    style: TextStyle(color: context.brand.muted, fontSize: 12),
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
 
               // 사진 섹션
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('완료 사진', style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-                  Text('${_photos.length}/${AppConstants.maxPhotos}', style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                  Text('완료 사진', style: TextStyle(color: context.brand.muted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+                  Text('${_photos.length}/${AppConstants.maxPhotos}', style: TextStyle(color: context.brand.muted, fontSize: 12)),
                 ],
               ),
-              const SizedBox(height: 8),
+              SizedBox(height: 8),
               // 사진 첨부 버튼 (점선 테두리)
               OutlinedButton.icon(
                 onPressed: _photos.length >= AppConstants.maxPhotos ? null : _pickPhotos,
@@ -107,31 +107,31 @@ class _CompletionPageState extends ConsumerState<CompletionPage> {
                   backgroundColor: AppColors.branch1.withOpacity(0.06),
                   foregroundColor: AppColors.branch1,
                 ),
-                icon: const Icon(Icons.camera_alt_outlined, size: 18),
-                label: const Text('사진 첨부 (복수 선택)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                icon: Icon(Icons.camera_alt_outlined, size: 18),
+                label: Text('사진 첨부 (복수 선택)', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
               ),
               if (_photos.isNotEmpty) ...[
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 _PhotoGrid(
                   photos: _photos,
                   onRemove: (i) => setState(() => _photos.removeAt(i)),
                 ),
               ],
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
 
               // 특이사항 메모
-              const Text('특이사항 메모', style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-              const SizedBox(height: 8),
+              Text('특이사항 메모', style: TextStyle(color: context.brand.muted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+              SizedBox(height: 8),
               TextField(
                 controller: _memoCtrl,
                 maxLines: 4,
                 maxLength: 500,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: '특이사항이 있으면 입력해주세요...',
-                  hintStyle: TextStyle(color: AppColors.dim, fontSize: 13),
+                  hintStyle: TextStyle(color: context.brand.dim, fontSize: 13),
                 ),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
 
               // 요약 카드
               _SummaryCard(
@@ -156,7 +156,7 @@ class _CompletionPageState extends ConsumerState<CompletionPage> {
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               child: _submitting
-                  ? const Row(
+                  ? Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
@@ -164,7 +164,7 @@ class _CompletionPageState extends ConsumerState<CompletionPage> {
                         Text('제출 중...', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                       ],
                     )
-                  : const Text('완료 처리하기', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  : Text('완료 처리하기', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
             ),
           ),
         ),
@@ -260,7 +260,7 @@ class _SummaryCard extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
       decoration: BoxDecoration(
-        color: AppColors.panel2,
+        color: context.brand.panel2,
         borderRadius: BorderRadius.circular(12),
       ),
       child: Column(
@@ -270,7 +270,7 @@ class _SummaryCard extends ConsumerWidget {
           _row(
             '다음 체크인',
             nextRes != null ? '${nextRes.guestName} · 👤 ${nextRes.guestCount}인' : '없음',
-            valueColor: nextRes != null ? AppColors.warn : AppColors.dim,
+            valueColor: nextRes != null ? AppColors.warn : context.brand.dim,
           ),
           _divider(),
           _row('담당', user?.name ?? '-', last: true),
@@ -285,7 +285,7 @@ class _SummaryCard extends ConsumerWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+          Text(label, style: TextStyle(color: AppColors.muted, fontSize: 12)),
           Flexible(
             child: Text(
               value,
@@ -346,8 +346,8 @@ class _PhotoGrid extends StatelessWidget {
               onTap: () => onRemove(i),
               child: Container(
                 width: 22, height: 22,
-                decoration: const BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
-                child: const Icon(Icons.close, color: Colors.white, size: 14),
+                decoration: BoxDecoration(color: Colors.black54, shape: BoxShape.circle),
+                child: Icon(Icons.close, color: Colors.white, size: 14),
               ),
             ),
           ),
@@ -395,25 +395,25 @@ class _CompletedView extends ConsumerWidget {
           ),
           child: Column(
             children: [
-              const Icon(Icons.check_circle, color: AppColors.ok, size: 48),
-              const SizedBox(height: 8),
-              const Text('청소 완료', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.ok)),
-              const SizedBox(height: 4),
+              Icon(Icons.check_circle, color: AppColors.ok, size: 48),
+              SizedBox(height: 8),
+              Text('청소 완료', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: AppColors.ok)),
+              SizedBox(height: 4),
               Text(
                 '${branch.name} · ${DateFormat('yyyy-MM-dd', 'ko').format(cleaning.scheduledDate)}',
-                style: const TextStyle(color: AppColors.muted, fontSize: 12),
+                style: TextStyle(color: context.brand.muted, fontSize: 12),
               ),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
 
         // 게스트/담당 정보
         Container(
           decoration: BoxDecoration(
-            color: AppColors.panel,
+            color: context.brand.panel,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.line),
+            border: Border.all(color: context.brand.line),
           ),
           child: Column(
             children: [
@@ -427,16 +427,16 @@ class _CompletedView extends ConsumerWidget {
               _divider(),
               _infoRow('담당', Text(
                 cleaning.assigneeName?.isNotEmpty == true ? cleaning.assigneeName! : '미상',
-                style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.text),
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.brand.text),
               )),
             ],
           ),
         ),
-        const SizedBox(height: 16),
+        SizedBox(height: 16),
 
         if (cleaning.photoUrls.isNotEmpty) ...[
-          const Text('첨부 사진', style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-          const SizedBox(height: 8),
+          Text('첨부 사진', style: TextStyle(color: context.brand.muted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+          SizedBox(height: 8),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -452,26 +452,26 @@ class _CompletedView extends ConsumerWidget {
               child: CachedNetworkImage(
                 imageUrl: cleaning.photoUrls[i],
                 fit: BoxFit.cover,
-                placeholder: (_, __) => Container(color: AppColors.line),
-                errorWidget: (_, __, ___) => Container(color: AppColors.line, child: const Icon(Icons.broken_image_outlined, color: AppColors.dim)),
+                placeholder: (_, __) => Container(color: context.brand.line),
+                errorWidget: (_, __, ___) => Container(color: context.brand.line, child: Icon(Icons.broken_image_outlined, color: context.brand.dim)),
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          SizedBox(height: 16),
         ],
 
         if (cleaning.memo.isNotEmpty) ...[
-          const Text('메모', style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
-          const SizedBox(height: 8),
+          Text('메모', style: TextStyle(color: context.brand.muted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5)),
+          SizedBox(height: 8),
           Container(
             width: double.infinity,
             padding: const EdgeInsets.all(14),
             decoration: BoxDecoration(
-              color: AppColors.panel,
+              color: context.brand.panel,
               borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: context.brand.line),
             ),
-            child: Text(cleaning.memo, style: const TextStyle(fontSize: 13, height: 1.5)),
+            child: Text(cleaning.memo, style: TextStyle(fontSize: 13, height: 1.5)),
           ),
         ],
       ],
@@ -484,7 +484,7 @@ class _CompletedView extends ConsumerWidget {
           children: [
             SizedBox(
               width: 90,
-              child: Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+              child: Text(label, style: TextStyle(color: AppColors.muted, fontSize: 12)),
             ),
             Expanded(child: Align(alignment: Alignment.centerRight, child: value)),
           ],
@@ -495,19 +495,19 @@ class _CompletedView extends ConsumerWidget {
 
   Widget _guestSnapshotText(String? name, int? count, {required String fallback, required Color color}) {
     if (name == null || name.isEmpty) {
-      return Text(fallback, style: const TextStyle(fontSize: 13, color: AppColors.dim));
+      return Text(fallback, style: TextStyle(fontSize: 13, color: AppColors.dim));
     }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(name, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: color)),
         if (count != null) ...[
-          const SizedBox(width: 6),
-          const Text('·', style: TextStyle(color: AppColors.dim, fontSize: 12)),
-          const SizedBox(width: 4),
-          const Icon(Icons.person, size: 12, color: AppColors.muted),
-          const SizedBox(width: 2),
-          Text('$count인', style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w600)),
+          SizedBox(width: 6),
+          Text('·', style: TextStyle(color: AppColors.dim, fontSize: 12)),
+          SizedBox(width: 4),
+          Icon(Icons.person, size: 12, color: AppColors.muted),
+          SizedBox(width: 2),
+          Text('$count인', style: TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w600)),
         ],
       ],
     );

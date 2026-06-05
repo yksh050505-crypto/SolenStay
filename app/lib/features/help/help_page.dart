@@ -37,7 +37,7 @@ class HelpPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         title: Text(l.t('도움말 / 문의', 'Help / Contact')),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
+        leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: () => context.pop()),
       ),
       body: SafeArea(
         child: ListView(
@@ -60,22 +60,22 @@ class HelpPage extends StatelessWidget {
                       color: AppColors.branch1.withOpacity(0.15),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.support_agent, color: AppColors.branch1, size: 22),
+                    child: Icon(Icons.support_agent, color: AppColors.branch1, size: 22),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           l.t('문의 안내', 'Need help?'),
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(
                           l.t('앱 사용 중 문제가 있으면 담당 매니저에게 문의해 주세요.',
                               'If you run into any issue, please contact your manager.'),
-                          style: const TextStyle(color: AppColors.muted, fontSize: 12, height: 1.4),
+                          style: TextStyle(color: context.brand.muted, fontSize: 12, height: 1.4),
                         ),
                       ],
                     ),
@@ -83,18 +83,18 @@ class HelpPage extends StatelessWidget {
                 ],
               ),
             ),
-            const SizedBox(height: 22),
+            SizedBox(height: 22),
 
             Text(
               l.t('자주 묻는 질문', 'Frequently asked'),
-              style: const TextStyle(
-                color: AppColors.muted,
+              style: TextStyle(
+                color: context.brand.muted,
                 fontWeight: FontWeight.w700,
                 fontSize: 12,
                 letterSpacing: 0.5,
               ),
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             ...faqs.map((f) => _FaqTile(question: f.$1, answer: f.$2)),
           ],
         ),
@@ -120,28 +120,28 @@ class _FaqTileState extends State<_FaqTile> {
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       decoration: BoxDecoration(
-        color: AppColors.panel,
+        color: context.brand.panel,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.brand.line),
       ),
       child: Theme(
         data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
         child: ExpansionTile(
           tilePadding: const EdgeInsets.symmetric(horizontal: 14),
           childrenPadding: const EdgeInsets.fromLTRB(14, 0, 14, 12),
-          shape: const Border(),
+          shape: Border(),
           onExpansionChanged: (v) => setState(() => _open = v),
           title: Text(
             widget.question,
-            style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+            style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
           ),
-          trailing: Icon(_open ? Icons.expand_less : Icons.expand_more, color: AppColors.muted),
+          trailing: Icon(_open ? Icons.expand_less : Icons.expand_more, color: context.brand.muted),
           children: [
             Align(
               alignment: Alignment.centerLeft,
               child: Text(
                 widget.answer,
-                style: const TextStyle(color: AppColors.muted, fontSize: 12, height: 1.5),
+                style: TextStyle(color: context.brand.muted, fontSize: 12, height: 1.5),
               ),
             ),
           ],

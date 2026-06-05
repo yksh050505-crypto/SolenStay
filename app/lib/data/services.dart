@@ -194,6 +194,27 @@ class FunctionsService {
     await _fn.httpsCallable('deleteUser').call({'uid': uid});
   }
 
+  /// 본인의 캘린더 구독 토큰 (없으면 발급).
+  Future<String> getOrCreateCalendarToken() async {
+    final res = await _fn.httpsCallable('getOrCreateCalendarToken').call();
+    return (res.data as Map)['token'] as String;
+  }
+
+  /// 토큰 재발급 — 기존 URL 무효화.
+  Future<String> regenerateCalendarToken() async {
+    final res = await _fn.httpsCallable('regenerateCalendarToken').call();
+    return (res.data as Map)['token'] as String;
+  }
+
+  /// 토큰 삭제 — 캘린더 연동 해제.
+  Future<void> revokeCalendarToken() async {
+    await _fn.httpsCallable('revokeCalendarToken').call();
+  }
+
+  /// 캘린더 구독 URL (HTTPS) — 토큰 받아 조합.
+  String calendarSubscriptionUrl(String token) =>
+      'https://asia-northeast3-solenstay-74f8e.cloudfunctions.net/myCalendar?token=$token';
+
   /// iCal 즉시 동기화 (branchId 없으면 전체 호점)
   Future<Map<String, dynamic>> syncICalManual({String? branchId}) async {
     final res = await _fn.httpsCallable('syncICalManual').call({

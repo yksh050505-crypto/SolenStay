@@ -46,10 +46,10 @@ class HomePage extends ConsumerWidget {
                       children: [
                         Text(
                           '안녕하세요, ${user?.name ?? ""}님',
-                          style: const TextStyle(color: AppColors.muted, fontSize: 13, fontWeight: FontWeight.w400),
+                          style: TextStyle(color: context.brand.muted, fontSize: 13, fontWeight: FontWeight.w400),
                         ),
-                        const SizedBox(height: 2),
-                        Text(today, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
+                        SizedBox(height: 2),
+                        Text(today, style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800)),
                       ],
                     ),
                   ),
@@ -57,22 +57,22 @@ class HomePage extends ConsumerWidget {
                   _NotificationButton(),
                 ],
               ),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
 
               // 미배정 청소 배너 (연간)
               const _UnassignedBanner(),
-              const SizedBox(height: 18),
+              SizedBox(height: 18),
 
               // 매니저: 호점별 / 실장·청소원: 타임라인
               Expanded(
                 child: branchesAsync.when(
-                  loading: () => const Center(child: CircularProgressIndicator()),
+                  loading: () => Center(child: CircularProgressIndicator()),
                   error: (e, _) => Center(
                     child: Padding(
                       padding: const EdgeInsets.all(20),
                       child: Text(
                         '호점 로드 실패: $e',
-                        style: const TextStyle(color: AppColors.danger, fontSize: 12),
+                        style: TextStyle(color: AppColors.danger, fontSize: 12),
                         textAlign: TextAlign.center,
                       ),
                     ),
@@ -83,11 +83,11 @@ class HomePage extends ConsumerWidget {
                         child: Column(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Icon(Icons.home_work_outlined, size: 44, color: AppColors.dim.withOpacity(0.5)),
-                            const SizedBox(height: 10),
-                            const Text(
+                            Icon(Icons.home_work_outlined, size: 44, color: context.brand.dim.withOpacity(0.5)),
+                            SizedBox(height: 10),
+                            Text(
                               '등록된 호점이 없습니다',
-                              style: TextStyle(color: AppColors.muted, fontSize: 13, fontWeight: FontWeight.w500),
+                              style: TextStyle(color: context.brand.muted, fontSize: 13, fontWeight: FontWeight.w500),
                             ),
                           ],
                         ),
@@ -102,7 +102,7 @@ class HomePage extends ConsumerWidget {
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
                           const _SectionTitle('다가오는 청소'),
-                          const SizedBox(height: 10),
+                          SizedBox(height: 10),
                           Expanded(
                             child: _BranchList(
                               branches: loadedBranches,
@@ -167,43 +167,76 @@ class _CleanerHomeView extends ConsumerWidget {
       return best;
     }
 
-    // 오늘의 청소 = 자기에게 배정된 오늘 작업
+    // 오늘의 청소 = 내 배정 && 오늘 && 완료 아님
     final todayMine = uid == null
         ? const <CleaningModel>[]
         : allCleanings.where((c) {
             final d = DateTime(c.scheduledDate.year, c.scheduledDate.month, c.scheduledDate.day);
-            return c.assigneeUid == uid && _sameDay(d, today);
+            return c.assigneeUid == uid && !c.isCompleted && _sameDay(d, today);
           }).toList();
+
+    // 다가오는 청소 = 내 배정 && 미래(내일+) && 완료 아님, 날짜 오름차순
+    final upcomingMine = uid == null
+        ? const <CleaningModel>[]
+        : (allCleanings.where((c) {
+            final d = DateTime(c.scheduledDate.year, c.scheduledDate.month, c.scheduledDate.day);
+            return c.assigneeUid == uid && !c.isCompleted && d.isAfter(today);
+          }).toList()
+            ..sort((a, b) => a.scheduledDate.compareTo(b.scheduledDate)));
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         const _SectionTitle('오늘의 청소'),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         if (todayMine.isEmpty)
-          Container(
-            padding: const EdgeInsets.symmetric(vertical: 18),
-            decoration: BoxDecoration(
-              color: AppColors.panel,
-              borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.line),
-            ),
-            child: const Center(
-              child: Text('오늘 청소가 없습니다', style: TextStyle(color: AppColors.muted, fontSize: 13)),
-            ),
-          )
+          _EmptyAssignmentCard(text: '오늘 배정된 청소가 없습니다')
         else
           ...todayMine.map((c) => Padding(
                 padding: const EdgeInsets.only(bottom: 8),
                 child: _CleaningTaskCard(item: _TaskItem(cleaning: c, incoming: incomingOf(c)), branches: branches),
               )),
-        const SizedBox(height: 22),
+        SizedBox(height: 22),
         const _SectionTitle('다가오는 청소'),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         Expanded(
-          child: _BranchList(branches: branches, cleanings: allCleanings, myUid: uid),
+          child: upcomingMine.isEmpty
+              ? _EmptyAssignmentCard(text: '배정된 청소가 없습니다')
+              : ListView.separated(
+                  padding: EdgeInsets.zero,
+                  itemCount: upcomingMine.length,
+                  separatorBuilder: (_, __) => SizedBox(height: 8),
+                  itemBuilder: (_, i) {
+                    final c = upcomingMine[i];
+                    return _CleaningTaskCard(
+                      item: _TaskItem(cleaning: c, incoming: incomingOf(c)),
+                      branches: branches,
+                    );
+                  },
+                ),
         ),
       ],
+    );
+  }
+}
+
+/// 빈 상태 카드 — "배정된 청소가 없습니다"
+class _EmptyAssignmentCard extends StatelessWidget {
+  final String text;
+  const _EmptyAssignmentCard({required this.text});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 18),
+      decoration: BoxDecoration(
+        color: Theme.of(context).cardTheme.color ?? context.brand.panel,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: Theme.of(context).dividerTheme.color ?? context.brand.line),
+      ),
+      child: Center(
+        child: Text(text, style: TextStyle(color: context.brand.muted, fontSize: 13)),
+      ),
     );
   }
 }
@@ -256,17 +289,17 @@ class _TimelineView extends ConsumerWidget {
       padding: EdgeInsets.zero,
       children: [
         const _SectionTitle('오늘의 청소'),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         if (todays.isEmpty)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 18),
             decoration: BoxDecoration(
-              color: AppColors.panel,
+              color: context.brand.panel,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: context.brand.line),
             ),
-            child: const Center(
-              child: Text('오늘 청소가 없습니다', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+            child: Center(
+              child: Text('오늘 청소가 없습니다', style: TextStyle(color: context.brand.muted, fontSize: 13)),
             ),
           )
         else
@@ -274,19 +307,19 @@ class _TimelineView extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: _CleaningTaskCard(item: t, branches: branches),
               )),
-        const SizedBox(height: 22),
+        SizedBox(height: 22),
         const _SectionTitle('다가오는 청소'),
-        const SizedBox(height: 10),
+        SizedBox(height: 10),
         if (upcoming.isEmpty)
           Container(
             padding: const EdgeInsets.symmetric(vertical: 18),
             decoration: BoxDecoration(
-              color: AppColors.panel,
+              color: context.brand.panel,
               borderRadius: BorderRadius.circular(14),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: context.brand.line),
             ),
-            child: const Center(
-              child: Text('7일 이내 예정된 청소가 없습니다', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+            child: Center(
+              child: Text('7일 이내 예정된 청소가 없습니다', style: TextStyle(color: context.brand.muted, fontSize: 13)),
             ),
           )
         else
@@ -294,7 +327,7 @@ class _TimelineView extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: 8),
                 child: _CleaningTaskCard(item: t, branches: branches),
               )),
-        const SizedBox(height: 20),
+        SizedBox(height: 20),
       ],
     );
   }
@@ -329,7 +362,7 @@ class _CleaningTaskCard extends ConsumerWidget {
     final guest = incoming ?? fallbackRes;
 
     return Material(
-      color: AppColors.panel,
+      color: context.brand.panel,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: () => context.push('/cleaning/${c.id}'),
@@ -337,7 +370,7 @@ class _CleaningTaskCard extends ConsumerWidget {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.line),
+            border: Border.all(color: context.brand.line),
           ),
           clipBehavior: Clip.antiAlias,
           child: Row(
@@ -365,44 +398,44 @@ class _CleaningTaskCard extends ConsumerWidget {
                               style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800),
                             ),
                           ),
-                          const SizedBox(width: 6),
+                          SizedBox(width: 6),
                           // 실제 날짜
                           Text(
                             dateStr,
-                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.text),
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.brand.text),
                           ),
-                          const Spacer(),
+                          Spacer(),
                           _statusPill(c, isMine),
                         ],
                       ),
-                      const SizedBox(height: 6),
+                      SizedBox(height: 6),
                       if (guest != null) ...[
                         Text(
                           '${guest.guestName} · 👤 ${guest.guestCount}인',
-                          style: const TextStyle(fontSize: 13, color: AppColors.text, fontWeight: FontWeight.w600),
+                          style: TextStyle(fontSize: 13, color: context.brand.text, fontWeight: FontWeight.w600),
                           maxLines: 1, overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(
                           incoming != null ? '신규 입실 게스트' : '체크아웃 게스트',
                           style: TextStyle(
                             fontSize: 10,
-                            color: incoming != null ? color : AppColors.muted,
+                            color: incoming != null ? color : context.brand.muted,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
                       ] else
                         Text(
                           '게스트 정보 없음',
-                          style: const TextStyle(fontSize: 12, color: AppColors.muted),
+                          style: TextStyle(fontSize: 12, color: context.brand.muted),
                         ),
                     ],
                   ),
                 ),
               ),
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(right: 8),
-                child: Icon(Icons.chevron_right, color: AppColors.dim, size: 18),
+                child: Icon(Icons.chevron_right, color: context.brand.dim, size: 18),
               ),
             ],
           ),
@@ -412,11 +445,24 @@ class _CleaningTaskCard extends ConsumerWidget {
   }
 
   Widget _statusPill(CleaningModel c, bool isMine) {
-    String text; Color color;
-    if (c.isCompleted) { text = '✓ 완료'; color = AppColors.ok; }
-    else if (c.isUnassigned) { text = '미지정'; color = AppColors.warn; }
-    else if (isMine) { text = '내 작업'; color = AppColors.branch1; }
-    else { text = '배정됨'; color = AppColors.muted; }
+    String text;
+    Color color;
+    if (c.isCompleted) {
+      text = '✓ 완료';
+      color = AppColors.ok;
+    } else if (c.isUnassigned) {
+      text = '?';
+      color = const Color(0xFFFACC15);
+    } else if (c.status == 'in_progress') {
+      text = '작업중';
+      color = AppColors.warn;
+    } else if (isMine) {
+      text = '내 작업';
+      color = AppColors.branch1;
+    } else {
+      text = '배정됨';
+      color = AppColors.muted;
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
@@ -457,7 +503,7 @@ class _BranchList extends StatelessWidget {
     return ListView.separated(
       padding: EdgeInsets.zero,
       itemCount: branches.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
+      separatorBuilder: (_, __) => SizedBox(height: 8),
       itemBuilder: (_, i) {
         final branch = branches[i];
         final nearest = nearestByBranch[branch.id];
@@ -478,18 +524,18 @@ class _NotificationButton extends ConsumerWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.panel,
+        color: context.brand.panel,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.brand.line),
       ),
       child: Stack(
         clipBehavior: Clip.none,
         children: [
           IconButton(
-            icon: const Icon(Icons.notifications_none_rounded, size: 22),
+            icon: Icon(Icons.notifications_none_rounded, size: 22),
             onPressed: () => context.push('/notifications'),
             tooltip: '알림',
-            color: AppColors.text,
+            color: context.brand.text,
           ),
           if (unread > 0)
             Positioned(
@@ -501,12 +547,12 @@ class _NotificationButton extends ConsumerWidget {
                 decoration: BoxDecoration(
                   color: AppColors.danger,
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: AppColors.panel, width: 1.5),
+                  border: Border.all(color: context.brand.panel, width: 1.5),
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   unread > 99 ? '99+' : '$unread',
-                  style: const TextStyle(
+                  style: TextStyle(
                     color: Colors.white,
                     fontSize: 10,
                     fontWeight: FontWeight.w800,
@@ -529,8 +575,8 @@ class _SectionTitle extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       text,
-      style: const TextStyle(
-        color: AppColors.muted,
+      style: TextStyle(
+        color: context.brand.muted,
         fontSize: 12,
         fontWeight: FontWeight.w700,
         letterSpacing: 0.5,
@@ -575,16 +621,16 @@ class _UnassignedBanner extends ConsumerWidget {
                   color: color, size: 22,
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text(
+                    Text(
                       '미배정 청소',
-                      style: TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.w600),
+                      style: TextStyle(color: context.brand.muted, fontSize: 11, fontWeight: FontWeight.w600),
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.baseline,
                       textBaseline: TextBaseline.alphabetic,
@@ -593,10 +639,10 @@ class _UnassignedBanner extends ConsumerWidget {
                           countAsync.isLoading ? '…' : '$count',
                           style: TextStyle(color: color, fontSize: 24, fontWeight: FontWeight.w900),
                         ),
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
                         Text(
                           '건 (1년 이내)',
-                          style: const TextStyle(color: AppColors.text, fontSize: 13, fontWeight: FontWeight.w600),
+                          style: TextStyle(color: context.brand.text, fontSize: 13, fontWeight: FontWeight.w600),
                         ),
                       ],
                     ),
@@ -624,10 +670,10 @@ class _StatsRow extends StatelessWidget {
     return Row(
       children: [
         _statBox(total.toString(), '오늘 작업', AppColors.branch1, Icons.assignment_outlined),
-        const SizedBox(width: 8),
+        SizedBox(width: 8),
         _statBox(done.toString(), '완료', AppColors.ok, Icons.check_circle_outline),
-        const SizedBox(width: 8),
-        _statBox(remaining.toString(), '남음', remaining > 0 ? AppColors.warn : AppColors.dim, Icons.pending_outlined),
+        SizedBox(width: 8),
+        _statBox(remaining.toString(), '남음', remaining > 0 ? AppColors.warn : context.brand.dim, Icons.pending_outlined),
       ],
     );
   }
@@ -643,10 +689,10 @@ class _StatsRow extends StatelessWidget {
           child: Column(
             children: [
               Icon(icon, color: color, size: 18),
-              const SizedBox(height: 6),
+              SizedBox(height: 6),
               Text(num, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, color: color)),
-              const SizedBox(height: 2),
-              Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.w500)),
+              SizedBox(height: 2),
+              Text(label, style: TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.w500)),
             ],
           ),
         ),
@@ -689,7 +735,7 @@ class _TaskCard extends ConsumerWidget {
     final bool sameDayArrival = nextCheckIn != null && sameDay(nextCheckIn, cleaning.scheduledDate);
 
     return Material(
-      color: AppColors.panel,
+      color: context.brand.panel,
       borderRadius: BorderRadius.circular(14),
       child: InkWell(
         onTap: () => context.push('/cleaning/${cleaning.id}'),
@@ -697,7 +743,7 @@ class _TaskCard extends ConsumerWidget {
         child: Container(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: AppColors.line),
+            border: Border.all(color: context.brand.line),
           ),
           clipBehavior: Clip.antiAlias,
           child: Row(
@@ -708,7 +754,7 @@ class _TaskCard extends ConsumerWidget {
                 constraints: const BoxConstraints(minHeight: 50),
                 color: branchColor,
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
                 // 호점 정보
                 Expanded(
                   child: Padding(
@@ -719,8 +765,8 @@ class _TaskCard extends ConsumerWidget {
                       children: [
                         Row(
                           children: [
-                            Text(branch.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text)),
-                            const SizedBox(width: 8),
+                            Text(branch.name, style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: context.brand.text)),
+                            SizedBox(width: 8),
                             Container(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                               decoration: BoxDecoration(
@@ -738,14 +784,14 @@ class _TaskCard extends ConsumerWidget {
                             ),
                           ],
                         ),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4),
                         if (nextGuestName != null && nextGuestName.isNotEmpty) ...[
                           Text(
                             '${nextGuestName}님 · 👤 ${nextGuestCount ?? 0}인',
-                            style: const TextStyle(fontSize: 13, color: AppColors.text, fontWeight: FontWeight.w600),
+                            style: TextStyle(fontSize: 13, color: context.brand.text, fontWeight: FontWeight.w600),
                             maxLines: 1, overflow: TextOverflow.ellipsis,
                           ),
-                          const SizedBox(height: 1),
+                          SizedBox(height: 1),
                           Text(
                             sameDayArrival
                                 ? '신규 입실 게스트 (당일)'
@@ -755,7 +801,7 @@ class _TaskCard extends ConsumerWidget {
                         ] else
                           Text(
                             '입실 예정 게스트 없음 · 체크아웃 ${DateFormat('M/d (E)', 'ko').format(cleaning.scheduledDate)}',
-                            style: const TextStyle(fontSize: 13, color: AppColors.muted, fontWeight: FontWeight.w500),
+                            style: TextStyle(fontSize: 13, color: context.brand.muted, fontWeight: FontWeight.w500),
                             maxLines: 1, overflow: TextOverflow.ellipsis,
                           ),
                       ],
@@ -770,11 +816,11 @@ class _TaskCard extends ConsumerWidget {
                     child: _statusPill(cleaning, isMine),
                   ),
                 ),
-                const Align(
+                Align(
                   alignment: Alignment.center,
                   child: Padding(
                     padding: EdgeInsets.only(right: 10),
-                    child: Icon(Icons.chevron_right, color: AppColors.dim, size: 18),
+                    child: Icon(Icons.chevron_right, color: context.brand.dim, size: 18),
                   ),
                 ),
             ],
@@ -786,7 +832,7 @@ class _TaskCard extends ConsumerWidget {
 
   Widget _statusPill(CleaningModel c, bool isMine) {
     if (c.isCompleted) return _pill('✓ 완료', AppColors.ok);
-    if (c.isUnassigned) return _pill('미지정', AppColors.warn);
+    if (c.isUnassigned) return _pill('?', const Color(0xFFFACC15));
     if (isMine) return _pill('내 작업', AppColors.branch1);
     return _pill('진행중', AppColors.muted);
   }
@@ -838,9 +884,9 @@ class _EmptyBranchCard extends StatelessWidget {
     final branchColor = AppColors.branchColor(branch.id);
     return Container(
       decoration: BoxDecoration(
-        color: AppColors.panel,
+        color: context.brand.panel,
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.brand.line),
       ),
       clipBehavior: Clip.antiAlias,
       child: Row(
@@ -851,7 +897,7 @@ class _EmptyBranchCard extends StatelessWidget {
             constraints: const BoxConstraints(minHeight: 50),
             color: branchColor.withOpacity(0.5),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
             Expanded(
               child: Padding(
                 padding: const EdgeInsets.symmetric(vertical: 10),
@@ -861,12 +907,12 @@ class _EmptyBranchCard extends StatelessWidget {
                   children: [
                     Text(
                       branch.name,
-                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: AppColors.text),
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: context.brand.text),
                     ),
-                    const SizedBox(height: 4),
-                    const Text(
+                    SizedBox(height: 4),
+                    Text(
                       '다가오는 청소 없음',
-                      style: TextStyle(fontSize: 13, color: AppColors.dim, fontWeight: FontWeight.w500),
+                      style: TextStyle(fontSize: 13, color: context.brand.dim, fontWeight: FontWeight.w500),
                     ),
                   ],
                 ),
@@ -880,12 +926,12 @@ class _EmptyBranchCard extends StatelessWidget {
                 child: Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: AppColors.dim.withOpacity(0.1),
+                    color: context.brand.dim.withOpacity(0.1),
                     borderRadius: BorderRadius.circular(999),
                   ),
-                  child: const Text(
+                  child: Text(
                     '−',
-                    style: TextStyle(color: AppColors.dim, fontSize: 11, fontWeight: FontWeight.w700),
+                    style: TextStyle(color: context.brand.dim, fontSize: 11, fontWeight: FontWeight.w700),
                   ),
                 ),
               ),

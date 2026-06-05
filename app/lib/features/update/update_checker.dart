@@ -69,8 +69,8 @@ class _UpdateCheckerState extends ConsumerState<UpdateChecker> {
           child: AlertDialog(
             title: Row(
               children: [
-                const Icon(Icons.system_update, color: AppColors.branch1),
-                const SizedBox(width: 8),
+                Icon(Icons.system_update, color: AppColors.branch1),
+                SizedBox(width: 8),
                 Expanded(
                   child: Text(l.t('새 버전 업데이트', 'New Version Available')),
                 ),
@@ -84,28 +84,28 @@ class _UpdateCheckerState extends ConsumerState<UpdateChecker> {
                   Text(
                     l.t('새 버전 ${v.latest} 이(가) 출시되었습니다.',
                         'Version ${v.latest} is now available.'),
-                    style: const TextStyle(fontWeight: FontWeight.w600),
+                    style: TextStyle(fontWeight: FontWeight.w600),
                   ),
                   if (v.releaseNotes.isNotEmpty) ...[
-                    const SizedBox(height: 12),
+                    SizedBox(height: 12),
                     Text(
                       l.t('변경 내용', 'Release notes'),
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 13,
                         fontWeight: FontWeight.w700,
-                        color: AppColors.dim,
+                        color: context.brand.dim,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(v.releaseNotes, style: const TextStyle(fontSize: 13)),
+                    SizedBox(height: 4),
+                    Text(v.releaseNotes, style: TextStyle(fontSize: 13)),
                   ],
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Text(
                     l.t(
                       '"지금 업데이트" 를 누르면 브라우저로 APK가 다운로드됩니다.\n다운로드 후 알림에서 파일을 눌러 설치하세요.',
                       'Tap "Update Now" to download the APK in your browser.\nOpen the file from the notification to install.',
                     ),
-                    style: const TextStyle(fontSize: 12, color: AppColors.dim),
+                    style: TextStyle(fontSize: 12, color: context.brand.dim),
                   ),
                 ],
               ),
@@ -126,7 +126,7 @@ class _UpdateCheckerState extends ConsumerState<UpdateChecker> {
                   }
                   if (!v.mandatory && ctx.mounted) Navigator.of(ctx).pop();
                 },
-                icon: const Icon(Icons.download),
+                icon: Icon(Icons.download),
                 label: Text(l.t('지금 업데이트', 'Update Now')),
               ),
             ],

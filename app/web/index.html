@@ -66,32 +66,30 @@
       var loader = document.getElementById('loading');
       if (loader) loader.remove();
     });
-    // 서비스 워커 강제 업데이트 정책
-    //  - 페이지 로드마다 + 5분마다 update() 호출 → 새 빌드 즉시 감지
-    //  - 새 SW가 설치되면 즉시 활성화 요청(SKIP_WAITING)
-    //  - 새 SW가 활성화되면 페이지 자동 1회 새로고침 → 사용자가 항상 최신 코드 사용
-    if ('serviceWorker' in navigator) {
-      navigator.serviceWorker.ready.then(function (reg) {
-        reg.update();
-        setInterval(function () { reg.update(); }, 5 * 60 * 1000);
-        reg.addEventListener('updatefound', function () {
-          var nw = reg.installing;
-          if (!nw) return;
-          nw.addEventListener('statechange', function () {
-            if (nw.state === 'installed' && navigator.serviceWorker.controller) {
-              try { nw.postMessage({ type: 'SKIP_WAITING' }); } catch (_) {}
-            }
-          });
-        });
-      });
-      var __refreshing = false;
-      navigator.serviceWorker.addEventListener('controllerchange', function () {
-        if (__refreshing) return;
-        __refreshing = true;
-        window.location.reload();
-      });
-    }
+    // 캐시 문제 영구 해결:
+    //  1) 기존에 등록된 모든 서비스워커 즉시 unregister
+    //  2) 브라우저 캐시 스토리지 비우기
+    //  3) 그 후 flutter_bootstrap.js 로드 → 항상 최신 코드
+    (function () {
+      function loadFlutter() {
+        var s = document.createElement('script');
+        s.src = 'flutter_bootstrap.js?v=' + Date.now();
+        s.async = true;
+        document.body.appendChild(s);
+      }
+      var ops = [];
+      if ('serviceWorker' in navigator) {
+        ops.push(navigator.serviceWorker.getRegistrations().then(function (regs) {
+          return Promise.all(regs.map(function (r) { return r.unregister(); }));
+        }).catch(function () {}));
+      }
+      if (window.caches) {
+        ops.push(caches.keys().then(function (keys) {
+          return Promise.all(keys.map(function (k) { return caches.delete(k); }));
+        }).catch(function () {}));
+      }
+      Promise.all(ops).then(loadFlutter);
+    })();
   </script>
-  <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>

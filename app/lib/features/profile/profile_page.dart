@@ -6,13 +6,14 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../core/fcm.dart';
 import '../../core/l10n.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/services.dart';
-import '../../main.dart' show kPrefAutoLogin;
+import '../../main.dart' show kPrefAutoLogin, kPrefThemeMode, themeModeProvider, themeModeToString;
 import '../shared/bottom_nav.dart';
 import 'package:firebase_messaging/firebase_messaging.dart' show AuthorizationStatus;
 
@@ -52,9 +53,9 @@ class ProfilePage extends ConsumerWidget {
                   onTap: user == null ? null : () => _editProfileDialog(context, ref, user),
                   child: _Avatar(name: user?.name ?? '', photoUrl: user?.photoUrl),
                 ),
-                const SizedBox(height: 10),
-                Text(user?.name ?? '...', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 4),
+                SizedBox(height: 10),
+                Text(user?.name ?? '...', style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+                SizedBox(height: 4),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                   decoration: BoxDecoration(
@@ -63,94 +64,113 @@ class ProfilePage extends ConsumerWidget {
                   ),
                   child: Text(
                     roleLabel,
-                    style: const TextStyle(color: AppColors.branch1, fontSize: 11, fontWeight: FontWeight.w700),
+                    style: TextStyle(color: AppColors.branch1, fontSize: 11, fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 22),
+            SizedBox(height: 22),
 
             // 매니저/실장 전용
             if (user?.canManageDashboard ?? false) ...[
               _SectionTitle(l.t('관리', 'Management')),
-              _menuItem(
+              _menuItem(context,
                 emoji: '📊',
                 label: l.t('매니저 대시보드', 'Manager dashboard'),
                 onTap: () => context.push('/manager'),
               ),
               // 매니저만 — 관리자 설정
               if (user?.isManager ?? false)
-                _menuItem(
+                _menuItem(context,
                   emoji: '⚙️',
                   label: l.t('관리자 설정', 'Admin settings'),
                   onTap: () => context.push('/admin/settings'),
                 ),
-              const SizedBox(height: 14),
+              SizedBox(height: 14),
             ],
 
             // 계정
             _SectionTitle(l.t('계정', 'Account')),
-            _menuItem(emoji: '🔒', label: l.t('PIN 변경', 'Change PIN'), onTap: () => _changePinDialog(context, ref)),
-            _menuItem(
+            _menuItem(context, emoji: '🔒', label: l.t('PIN 변경', 'Change PIN'), onTap: () => _changePinDialog(context, ref)),
+            _menuItem(context,
               emoji: '👤',
               label: l.t('이름 / 프로필 사진', 'Name / Profile photo'),
               onTap: user == null ? null : () => _editProfileDialog(context, ref, user),
             ),
             // 자동 로그인 토글 (디바이스별 SharedPreferences에 저장)
             _AutoLoginToggle(l: l),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
 
             // 알림 — 각 토글이 사용자 prefs(notificationPrefs.{key})에 저장됨
             _SectionTitle(l.t('알림', 'Notifications')),
             // 권한 안 켜져있으면 활성화 카드 표시 (켜져있으면 숨김)
             _NotificationPermissionCard(l: l),
-            _toggleItem(
+            _toggleItem(context,
               emoji: '🔔',
               label: l.t('새 청소 일정 알림', 'New cleaning alerts'),
               value: user?.prefEnabled(_kPrefNewCleaning) ?? true,
               onChanged: user == null ? null : (v) => _toggleNotifPref(context, ref, _kPrefNewCleaning, v),
             ),
-            _toggleItem(
+            _toggleItem(context,
               emoji: '📣',
               label: l.t('매니저 공지사항', 'Manager notices'),
               value: user?.prefEnabled(_kPrefManagerNotice) ?? true,
               onChanged: user == null ? null : (v) => _toggleNotifPref(context, ref, _kPrefManagerNotice, v),
             ),
-            _toggleItem(
+            _toggleItem(context,
               emoji: '📅',
               label: l.t('일정 변경 알림', 'Schedule change alerts'),
               value: user?.prefEnabled(_kPrefScheduleChange) ?? true,
               onChanged: user == null ? null : (v) => _toggleNotifPref(context, ref, _kPrefScheduleChange, v),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
 
             // 기타
             _SectionTitle(l.t('기타', 'More')),
-            _menuItem(
+            _menuItem(context,
+              emoji: '🌓',
+              label: l.t('테마', 'Theme'),
+              trailing: Consumer(builder: (ctx, ref, _) {
+                final mode = ref.watch(themeModeProvider);
+                final label = mode == ThemeMode.system
+                    ? l.t('시스템', 'System')
+                    : mode == ThemeMode.light
+                        ? l.t('라이트', 'Light')
+                        : l.t('다크', 'Dark');
+                return Text('$label ›', style: TextStyle(color: context.brand.muted, fontSize: 13));
+              }),
+              onTap: () => _themeDialog(context, ref, l),
+            ),
+            _menuItem(context,
               emoji: '🌐',
               label: l.t('언어', 'Language'),
               trailing: Text(
                 '${l.t('한국어', 'English')} ›',
-                style: const TextStyle(color: AppColors.muted, fontSize: 13),
+                style: TextStyle(color: context.brand.muted, fontSize: 13),
               ),
               onTap: () => _languageDialog(context, ref, user),
             ),
-            _menuItem(
+            _menuItem(context,
+              emoji: '📆',
+              label: l.t('내 청소 캘린더 연동', 'Sync my cleaning calendar'),
+              onTap: () => context.push('/profile/calendar-sync'),
+            ),
+            _menuItem(context,
               emoji: '❓',
               label: l.t('도움말 / 문의', 'Help / Contact'),
               onTap: () => context.push('/help'),
             ),
-            _menuItem(
+            _menuItem(context,
               emoji: 'ℹ️',
               label: l.t('앱 버전', 'App version'),
               trailing: Consumer(builder: (ctx, ref, _) {
                 final info = ref.watch(appBuildInfoProvider).valueOrNull;
                 final text = info == null ? '...' : 'v${info.version}';
-                return Text(text, style: const TextStyle(color: AppColors.dim, fontSize: 12));
+                return Text(text, style: TextStyle(color: context.brand.dim, fontSize: 12));
               }),
               onTap: () => _showAbout(context, ref, l),
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
 
             // 로그아웃
             SizedBox(
@@ -165,7 +185,7 @@ class ProfilePage extends ConsumerWidget {
                 onPressed: () async {
                   await FirebaseAuth.instance.signOut();
                 },
-                child: Text(l.t('로그아웃', 'Sign out'), style: const TextStyle(fontWeight: FontWeight.w700)),
+                child: Text(l.t('로그아웃', 'Sign out'), style: TextStyle(fontWeight: FontWeight.w700)),
               ),
             ),
           ],
@@ -232,7 +252,7 @@ class ProfilePage extends ConsumerWidget {
                           child: InkWell(
                             customBorder: const CircleBorder(),
                             onTap: busy ? null : pick,
-                            child: const Padding(
+                            child: Padding(
                               padding: EdgeInsets.all(6),
                               child: Icon(Icons.camera_alt, size: 16, color: Colors.white),
                             ),
@@ -244,11 +264,11 @@ class ProfilePage extends ConsumerWidget {
                   if (showUrl != null)
                     TextButton.icon(
                       onPressed: busy ? null : () => setState(() => removePhoto = true),
-                      icon: const Icon(Icons.delete_outline, size: 16),
+                      icon: Icon(Icons.delete_outline, size: 16),
                       style: TextButton.styleFrom(foregroundColor: AppColors.danger),
                       label: Text(l.t('사진 제거', 'Remove photo')),
                     ),
-                  const SizedBox(height: 8),
+                  SizedBox(height: 8),
                   TextField(
                     controller: nameCtrl,
                     onChanged: (_) => setState(() {}),
@@ -289,13 +309,191 @@ class ProfilePage extends ConsumerWidget {
                         }
                       },
                 child: busy
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
                     : Text(l.t('저장', 'Save')),
               ),
             ],
           );
         },
       ),
+    );
+  }
+
+  /// 테마 선택 (시스템 / 라이트 / 다크)
+  Future<void> _themeDialog(BuildContext context, WidgetRef ref, L10n l) async {
+    final current = ref.read(themeModeProvider);
+    final picked = await showDialog<ThemeMode>(
+      context: context,
+      builder: (ctx) => SimpleDialog(
+        title: Text(l.t('테마', 'Theme')),
+        children: [
+          for (final mode in ThemeMode.values)
+            RadioListTile<ThemeMode>(
+              value: mode,
+              groupValue: current,
+              title: Text(
+                mode == ThemeMode.system
+                    ? l.t('시스템', 'System')
+                    : mode == ThemeMode.light
+                        ? l.t('라이트', 'Light')
+                        : l.t('다크', 'Dark'),
+              ),
+              subtitle: mode == ThemeMode.system
+                  ? Text(
+                      l.t('휴대폰 설정 따라가기', "Follow phone's setting"),
+                      style: TextStyle(fontSize: 11),
+                    )
+                  : null,
+              onChanged: (v) => Navigator.of(ctx).pop(v),
+            ),
+        ],
+      ),
+    );
+    if (picked == null || picked == current) return;
+    ref.read(themeModeProvider.notifier).state = picked;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString(kPrefThemeMode, themeModeToString(picked));
+    } catch (_) {}
+  }
+
+  /// 본인 청소 캘린더 구독 다이얼로그 — 구글/아이폰/URL 복사/재발급/해제
+  Future<void> _calendarSyncDialog(BuildContext context, WidgetRef ref, L10n l) async {
+    final fn = ref.read(functionsServiceProvider);
+    String? token;
+    String? error;
+    bool busy = true;
+
+    Future<void> load(Future<String> Function() get) async {
+      try {
+        token = await get();
+        error = null;
+      } catch (e) {
+        error = '$e';
+      } finally {
+        busy = false;
+      }
+    }
+
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(builder: (ctx, setLocal) {
+        if (busy && token == null && error == null) {
+          // 첫 진입 시 토큰 발급
+          // ignore: discarded_futures
+          load(fn.getOrCreateCalendarToken).then((_) => setLocal(() {}));
+        }
+        final url = token == null ? null : fn.calendarSubscriptionUrl(token!);
+        final webcal = url == null ? null : url.replaceFirst('https://', 'webcal://');
+        final googleAdd = url == null
+            ? null
+            : 'https://calendar.google.com/calendar/render?cid=${Uri.encodeComponent(url)}';
+
+        return AlertDialog(
+          title: Text(l.t('내 청소 캘린더 연동', 'Sync my cleaning calendar')),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  l.t(
+                    '본인이 배정된 청소만 구글/아이폰 캘린더에 자동으로 반영됩니다.\n등록 후 새 청소가 배정되면 자동으로 추가됩니다.',
+                    'Only your assigned cleanings will appear. New assignments sync automatically.',
+                  ),
+                  style: TextStyle(fontSize: 12, color: context.brand.muted),
+                ),
+                const SizedBox(height: 14),
+                if (busy && url == null)
+                  const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator()))
+                else if (error != null)
+                  Text(error!, style: const TextStyle(color: AppColors.danger, fontSize: 12))
+                else if (url != null) ...[
+                  // 구글 캘린더
+                  FilledButton.icon(
+                    onPressed: () => launchUrl(Uri.parse(googleAdd!), mode: LaunchMode.externalApplication),
+                    icon: const Icon(Icons.event, size: 16),
+                    label: Text(l.t('구글 캘린더에 추가', 'Add to Google Calendar')),
+                  ),
+                  const SizedBox(height: 8),
+                  // 아이폰 캘린더
+                  OutlinedButton.icon(
+                    onPressed: () => launchUrl(Uri.parse(webcal!), mode: LaunchMode.externalApplication),
+                    icon: const Icon(Icons.phone_iphone, size: 16),
+                    label: Text(l.t('아이폰 캘린더에 추가', 'Add to iPhone Calendar')),
+                  ),
+                  const SizedBox(height: 8),
+                  // URL 복사
+                  OutlinedButton.icon(
+                    onPressed: () async {
+                      await Clipboard.setData(ClipboardData(text: url));
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(l.t('구독 URL 복사됨', 'URL copied'))),
+                        );
+                      }
+                    },
+                    icon: const Icon(Icons.copy, size: 16),
+                    label: Text(l.t('구독 URL 복사', 'Copy URL')),
+                  ),
+                  const SizedBox(height: 14),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: context.brand.panel2,
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: SelectableText(
+                      url,
+                      style: TextStyle(fontSize: 10, color: context.brand.muted, fontFamily: 'monospace'),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            // 좌측: 재발급 / 연동 해제
+            TextButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      setLocal(() { busy = true; token = null; error = null; });
+                      await load(fn.regenerateCalendarToken);
+                      setLocal(() {});
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text(l.t('새 URL 발급됨 (이전 URL은 무효)', 'New URL issued'))),
+                        );
+                      }
+                    },
+              child: Text(l.t('재발급', 'Regenerate')),
+            ),
+            TextButton(
+              onPressed: busy
+                  ? null
+                  : () async {
+                      setLocal(() => busy = true);
+                      try {
+                        await fn.revokeCalendarToken();
+                        if (ctx.mounted) Navigator.of(ctx).pop();
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text(l.t('연동 해제됨', 'Sync disabled'))),
+                          );
+                        }
+                      } catch (e) {
+                        setLocal(() { busy = false; error = '$e'; });
+                      }
+                    },
+              style: TextButton.styleFrom(foregroundColor: AppColors.danger),
+              child: Text(l.t('연동 해제', 'Disconnect')),
+            ),
+            const Spacer(),
+            TextButton(onPressed: () => Navigator.of(ctx).pop(), child: Text(l.t('닫기', 'Close'))),
+          ],
+        );
+      }),
     );
   }
 
@@ -347,18 +545,18 @@ class ProfilePage extends ConsumerWidget {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('PIN 변경'),
+        title: Text('PIN 변경'),
         content: TextField(
           controller: ctrl,
           keyboardType: TextInputType.number,
           obscureText: true,
           maxLength: 6,
           inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-          decoration: const InputDecoration(hintText: '새 PIN (6자리 숫자)'),
+          decoration: InputDecoration(hintText: '새 PIN (6자리 숫자)'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: const Text('변경')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('취소')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: Text('변경')),
         ],
       ),
     );
@@ -385,7 +583,8 @@ class ProfilePage extends ConsumerWidget {
     }
   }
 
-  Widget _menuItem({
+  Widget _menuItem(
+    BuildContext context, {
     required String emoji,
     required String label,
     VoidCallback? onTap,
@@ -394,7 +593,7 @@ class ProfilePage extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Material(
-        color: AppColors.panel,
+        color: context.brand.panel,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           onTap: onTap,
@@ -403,14 +602,14 @@ class ProfilePage extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: context.brand.line),
             ),
             child: Row(
               children: [
                 Text(emoji, style: const TextStyle(fontSize: 16)),
                 const SizedBox(width: 10),
-                Expanded(child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
-                trailing ?? const Icon(Icons.chevron_right, color: AppColors.muted, size: 18),
+                Expanded(child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.brand.text))),
+                trailing ?? Icon(Icons.chevron_right, color: context.brand.muted, size: 18),
               ],
             ),
           ),
@@ -433,7 +632,8 @@ class ProfilePage extends ConsumerWidget {
     }
   }
 
-  Widget _toggleItem({
+  Widget _toggleItem(
+    BuildContext context, {
     required String emoji,
     required String label,
     required bool value,
@@ -444,22 +644,22 @@ class ProfilePage extends ConsumerWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.panel,
+          color: context.brand.panel,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: context.brand.line),
         ),
         child: Row(
           children: [
             Text(emoji, style: const TextStyle(fontSize: 16)),
             const SizedBox(width: 10),
-            Expanded(child: Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500))),
+            Expanded(child: Text(label, style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500, color: context.brand.text))),
             Switch(
               value: value,
               onChanged: onChanged,
               activeColor: Colors.white,
               activeTrackColor: AppColors.branch1,
               inactiveThumbColor: Colors.white,
-              inactiveTrackColor: AppColors.line,
+              inactiveTrackColor: context.brand.line,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ],
@@ -532,28 +732,28 @@ class _NotificationPermissionCardState extends ConsumerState<_NotificationPermis
             ),
             child: Row(
               children: [
-                const Text('🔕', style: TextStyle(fontSize: 16)),
-                const SizedBox(width: 10),
+                Text('🔕', style: TextStyle(fontSize: 16)),
+                SizedBox(width: 10),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
                         widget.l.t('알림이 꺼져 있습니다', 'Notifications are off'),
-                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.warn),
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.warn),
                       ),
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(
                         widget.l.t('탭하여 알림 받기', 'Tap to enable'),
-                        style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                        style: TextStyle(fontSize: 11, color: context.brand.muted),
                       ),
                     ],
                   ),
                 ),
                 if (_busy)
-                  const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                  SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
                 else
-                  const Icon(Icons.chevron_right, color: AppColors.warn, size: 20),
+                  Icon(Icons.chevron_right, color: AppColors.warn, size: 20),
               ],
             ),
           ),
@@ -611,26 +811,26 @@ class _AutoLoginToggleState extends State<_AutoLoginToggle> {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
         decoration: BoxDecoration(
-          color: AppColors.panel,
+          color: context.brand.panel,
           borderRadius: BorderRadius.circular(10),
-          border: Border.all(color: AppColors.line),
+          border: Border.all(color: context.brand.line),
         ),
         child: Row(
           children: [
-            const Text('🔓', style: TextStyle(fontSize: 16)),
-            const SizedBox(width: 10),
+            Text('🔓', style: TextStyle(fontSize: 16)),
+            SizedBox(width: 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     widget.l.t('자동 로그인 (이 기기)', 'Auto sign-in (this device)'),
-                    style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
+                    style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                   ),
-                  const SizedBox(height: 2),
+                  SizedBox(height: 2),
                   Text(
                     widget.l.t('끄면 앱 시작 시마다 PIN 로그인', 'When off, PIN required on each app start'),
-                    style: const TextStyle(fontSize: 10, color: AppColors.muted),
+                    style: TextStyle(fontSize: 10, color: context.brand.muted),
                   ),
                 ],
               ),
@@ -641,7 +841,7 @@ class _AutoLoginToggleState extends State<_AutoLoginToggle> {
               activeColor: Colors.white,
               activeTrackColor: AppColors.branch1,
               inactiveThumbColor: Colors.white,
-              inactiveTrackColor: AppColors.line,
+              inactiveTrackColor: context.brand.line,
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ],
@@ -663,13 +863,13 @@ class _Avatar extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      decoration: const BoxDecoration(color: AppColors.branch1, shape: BoxShape.circle),
+      decoration: BoxDecoration(color: AppColors.branch1, shape: BoxShape.circle),
       clipBehavior: Clip.antiAlias,
       child: hasPhoto
           ? CachedNetworkImage(
               imageUrl: photoUrl!,
               fit: BoxFit.cover,
-              placeholder: (_, __) => const Center(
+              placeholder: (_, __) => Center(
                 child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
               ),
               errorWidget: (_, __, ___) => _initial(),
@@ -696,8 +896,8 @@ class _SectionTitle extends StatelessWidget {
       padding: const EdgeInsets.only(left: 2, bottom: 6, top: 4),
       child: Text(
         text,
-        style: const TextStyle(
-          color: AppColors.muted,
+        style: TextStyle(
+          color: context.brand.muted,
           fontWeight: FontWeight.w700,
           fontSize: 12,
           letterSpacing: 0.5,

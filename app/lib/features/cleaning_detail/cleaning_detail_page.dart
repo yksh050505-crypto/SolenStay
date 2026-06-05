@@ -79,16 +79,16 @@ class _CleaningDetailPageState extends ConsumerState<CleaningDetailPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('청소 작업'),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
+        title: Text('청소 작업'),
+        leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: () => context.pop()),
       ),
       bottomNavigationBar: const AppBottomNav(active: BottomTab.home),
       body: cleaningAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (e, _) => Center(child: Text('오류: $e', style: const TextStyle(color: AppColors.danger))),
+        loading: () => Center(child: CircularProgressIndicator()),
+        error: (e, _) => Center(child: Text('오류: $e', style: TextStyle(color: AppColors.danger))),
         data: (cleaning) {
           if (cleaning == null) {
-            return const Center(child: Text('청소 작업을 찾을 수 없습니다.', style: TextStyle(color: AppColors.muted)));
+            return Center(child: Text('청소 작업을 찾을 수 없습니다.', style: TextStyle(color: context.brand.muted)));
           }
 
           final branch = branches.firstWhere(
@@ -115,7 +115,7 @@ class _CleaningDetailPageState extends ConsumerState<CleaningDetailPage> {
                         prevReservation: reservationAsync.valueOrNull,
                         nextReservation: nextResAsync.valueOrNull,
                       ),
-                      const SizedBox(height: 14),
+                      SizedBox(height: 14),
 
                       // 담당자 상태
                       _AssigneeStatus(
@@ -126,7 +126,7 @@ class _CleaningDetailPageState extends ConsumerState<CleaningDetailPage> {
                         onClaim: () => _claimCleaning(cleaning),
                         onRelease: () => _releaseCleaning(cleaning),
                       ),
-                      const SizedBox(height: 18),
+                      SizedBox(height: 18),
 
                       // 체크리스트
                       if (cleaning.checklist.isNotEmpty)
@@ -138,12 +138,12 @@ class _CleaningDetailPageState extends ConsumerState<CleaningDetailPage> {
                         Container(
                           padding: const EdgeInsets.all(20),
                           decoration: BoxDecoration(
-                            color: AppColors.panel,
+                            color: context.brand.panel,
                             borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.line),
+                            border: Border.all(color: context.brand.line),
                           ),
-                          child: const Center(
-                            child: Text('체크리스트가 아직 설정되지 않았습니다.', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+                          child: Center(
+                            child: Text('체크리스트가 아직 설정되지 않았습니다.', style: TextStyle(color: context.brand.muted, fontSize: 13)),
                           ),
                         ),
                     ],
@@ -232,17 +232,17 @@ class _BranchHeader extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
-              Text(branch.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-              const SizedBox(width: 10),
+              Text(branch.name, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+              SizedBox(width: 10),
               Text(
                 DateFormat('M/d (E)', 'ko').format(cleaning.scheduledDate),
-                style: const TextStyle(fontSize: 12, color: AppColors.muted, fontWeight: FontWeight.w600),
+                style: TextStyle(fontSize: 12, color: context.brand.muted, fontWeight: FontWeight.w600),
               ),
-              const Spacer(),
+              Spacer(),
               _statusPill(cleaning, branchColor),
             ],
           ),
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
 
           // 이전 게스트 / 다음 체크인
           Row(
@@ -255,7 +255,7 @@ class _BranchHeader extends StatelessWidget {
                   showDate: '체크아웃',
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: _GuestInfo(
                   label: '다음 체크인',
@@ -268,7 +268,7 @@ class _BranchHeader extends StatelessWidget {
           ),
 
           if (total > 0) ...[
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             // 진행률 바
             ClipRRect(
               borderRadius: BorderRadius.circular(999),
@@ -279,10 +279,10 @@ class _BranchHeader extends StatelessWidget {
                 valueColor: AlwaysStoppedAnimation<Color>(branchColor),
               ),
             ),
-            const SizedBox(height: 6),
+            SizedBox(height: 6),
             Text(
               '$done/$total 항목 완료',
-              style: const TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w500),
+              style: TextStyle(fontSize: 11, color: context.brand.muted, fontWeight: FontWeight.w500),
             ),
           ],
         ],
@@ -297,8 +297,8 @@ class _BranchHeader extends StatelessWidget {
       text = '완료';
       color = AppColors.ok;
     } else if (c.isUnassigned) {
-      text = '미지정';
-      color = AppColors.warn;
+      text = '?';
+      color = const Color(0xFFFACC15);
     } else {
       text = '진행중';
       color = branchColor;
@@ -329,25 +329,25 @@ class _GuestInfo extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final r = reservation;
-    final dateColor = highlight ? AppColors.warn : AppColors.muted;
+    final dateColor = highlight ? AppColors.warn : context.brand.muted;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(label, style: const TextStyle(color: AppColors.dim, fontSize: 10, fontWeight: FontWeight.w600)),
-        const SizedBox(height: 2),
+        Text(label, style: TextStyle(color: context.brand.dim, fontSize: 10, fontWeight: FontWeight.w600)),
+        SizedBox(height: 2),
         Text(
           r?.guestName ?? '-',
-          style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
+          style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: 2),
+        SizedBox(height: 2),
         if (r != null) ...[
           Text(
             '👤 ${r.guestCount}인',
             style: TextStyle(color: dateColor, fontSize: 11, fontWeight: FontWeight.w500),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           Text(
             '$showDate ${DateFormat('M/d (E)', 'ko').format(showDate == '체크아웃' ? r.checkOut : r.checkIn)}',
             style: TextStyle(color: dateColor, fontSize: 11, fontWeight: FontWeight.w600),
@@ -384,21 +384,21 @@ class _AssigneeStatus extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.panel,
+        color: context.brand.panel,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.brand.line),
       ),
       child: Row(
         children: [
-          const Icon(Icons.person_outline, size: 20, color: AppColors.muted),
-          const SizedBox(width: 10),
+          Icon(Icons.person_outline, size: 20, color: context.brand.muted),
+          SizedBox(width: 10),
           Expanded(
             child: cleaning.isUnassigned
-                ? const Text('담당자 미지정', style: TextStyle(color: AppColors.warn, fontSize: 13, fontWeight: FontWeight.w600))
+                ? Text('담당자 미지정', style: TextStyle(color: AppColors.warn, fontSize: 13, fontWeight: FontWeight.w600))
                 : Text(
                     isMine ? '내가 담당 중' : '다른 청소원 담당 중',
                     style: TextStyle(
-                      color: isMine ? AppColors.branch1 : AppColors.muted,
+                      color: isMine ? AppColors.branch1 : context.brand.muted,
                       fontSize: 13,
                       fontWeight: FontWeight.w600,
                     ),
@@ -411,8 +411,8 @@ class _AssigneeStatus extends StatelessWidget {
                 onPressed: claiming ? null : onClaim,
                 style: FilledButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 14)),
                 child: claiming
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                    : const Text('내가 할게요', style: TextStyle(fontSize: 12)),
+                    ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    : Text('내가 할게요', style: TextStyle(fontSize: 12)),
               ),
             ),
           if (isMine && !cleaning.isCompleted)
@@ -422,8 +422,8 @@ class _AssigneeStatus extends StatelessWidget {
                 onPressed: claiming ? null : onRelease,
                 style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 12)),
                 child: claiming
-                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
-                    : const Text('배정 해제', style: TextStyle(fontSize: 12)),
+                    ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                    : Text('배정 해제', style: TextStyle(fontSize: 12)),
               ),
             ),
         ],
@@ -459,7 +459,7 @@ class _ChecklistSection extends ConsumerWidget {
                 padding: const EdgeInsets.only(left: 2, bottom: 8),
                 child: Text(
                   entry.key,
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: AppColors.muted),
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: context.brand.muted),
                 ),
               ),
               ...entry.value.map((e) => _ChecklistTile(
@@ -488,7 +488,7 @@ class _ChecklistTile extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: 6),
       child: Material(
-        color: AppColors.panel,
+        color: context.brand.panel,
         borderRadius: BorderRadius.circular(10),
         child: InkWell(
           onTap: enabled ? () => _toggle(ref) : null,
@@ -497,7 +497,7 @@ class _ChecklistTile extends ConsumerWidget {
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: AppColors.line),
+              border: Border.all(color: context.brand.line),
             ),
             child: Row(
               children: [
@@ -508,22 +508,22 @@ class _ChecklistTile extends ConsumerWidget {
                     color: item.checked ? AppColors.ok : Colors.transparent,
                     borderRadius: BorderRadius.circular(6),
                     border: Border.all(
-                      color: item.checked ? AppColors.ok : AppColors.line,
+                      color: item.checked ? AppColors.ok : context.brand.line,
                       width: 2,
                     ),
                   ),
                   child: item.checked
-                      ? const Icon(Icons.check, color: Colors.white, size: 14)
+                      ? Icon(Icons.check, color: Colors.white, size: 14)
                       : null,
                 ),
-                const SizedBox(width: 12),
+                SizedBox(width: 12),
                 Expanded(
                   child: Text(
                     item.text,
                     style: TextStyle(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
-                      color: item.checked ? AppColors.muted : AppColors.text,
+                      color: item.checked ? context.brand.muted : context.brand.text,
                       decoration: item.checked ? TextDecoration.lineThrough : null,
                     ),
                   ),
@@ -571,11 +571,11 @@ class _BottomAction extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            const Icon(Icons.check_circle, color: AppColors.ok, size: 20),
-            const SizedBox(width: 8),
+            Icon(Icons.check_circle, color: AppColors.ok, size: 20),
+            SizedBox(width: 8),
             Text(
               '완료됨 ${cleaning.completedAt != null ? DateFormat('HH:mm').format(cleaning.completedAt!) : ''}',
-              style: const TextStyle(color: AppColors.ok, fontWeight: FontWeight.w700, fontSize: 14),
+              style: TextStyle(color: AppColors.ok, fontWeight: FontWeight.w700, fontSize: 14),
             ),
           ],
         ),
@@ -598,7 +598,7 @@ class _BottomAction extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(
               '모든 항목 체크 시 다음 단계로',
-              style: TextStyle(color: AppColors.muted, fontSize: 11),
+              style: TextStyle(color: context.brand.muted, fontSize: 11),
             ),
           ),
         SizedBox(
@@ -615,7 +615,7 @@ class _BottomAction extends StatelessWidget {
             icon: Icon(allDone ? Icons.arrow_forward : Icons.lock, size: 18),
             label: Text(
               allDone ? '다음 (완료 보고)' : '다음 ($done/$total)',
-              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+              style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
           ),
         ),

@@ -66,10 +66,10 @@ class ManagerDashboardPage extends ConsumerWidget {
     if (userAsync.isLoading) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('매니저 대시보드'),
-          leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
+          title: Text('매니저 대시보드'),
+          leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: () => context.pop()),
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -77,16 +77,16 @@ class ManagerDashboardPage extends ConsumerWidget {
     if (user == null || !user.canManageDashboard) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('권한 없음'),
-          leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
+          title: Text('권한 없음'),
+          leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: () => context.pop()),
         ),
-        body: const Center(
+        body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.lock_outline, size: 48, color: AppColors.dim),
+              Icon(Icons.lock_outline, size: 48, color: context.brand.dim),
               SizedBox(height: 12),
-              Text('매니저/실장만 접근 가능합니다', style: TextStyle(color: AppColors.muted)),
+              Text('매니저/실장만 접근 가능합니다', style: TextStyle(color: context.brand.muted)),
             ],
           ),
         ),
@@ -101,8 +101,8 @@ class ManagerDashboardPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('매니저 대시보드'),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
+        title: Text('매니저 대시보드'),
+        leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: () => context.pop()),
       ),
       body: SafeArea(
         child: ListView(
@@ -115,36 +115,36 @@ class ManagerDashboardPage extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('관리자', style: TextStyle(color: AppColors.muted, fontSize: 13)),
-                      const SizedBox(height: 2),
+                      Text('관리자', style: TextStyle(color: context.brand.muted, fontSize: 13)),
+                      SizedBox(height: 2),
                       Text(
                         DateFormat('M월 d일 (E)', 'ko').format(DateTime.now()),
-                        style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
                       ),
                     ],
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
 
             // 1) 큰 진행률 카드
             todayCleanings.when(
-              loading: () => const Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator())),
+              loading: () => Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator())),
               error: (e, _) => Text('오류: $e'),
               data: (todayList) => _ProgressOverviewCard(
                 todayList: todayList,
                 branches: branches,
               ),
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
 
             // 1.5) 완료 보고 — 최근 청소 완료 내역 (사진 포함)
             _SectionHeader(title: '완료 보고'),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             completed.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Text('오류: $e', style: const TextStyle(color: AppColors.danger)),
+              loading: () => Center(child: CircularProgressIndicator()),
+              error: (e, _) => Text('오류: $e', style: TextStyle(color: AppColors.danger)),
               data: (list) {
                 if (list.isEmpty) {
                   return _emptyBox('아직 완료 보고가 없습니다');
@@ -154,14 +154,14 @@ class ManagerDashboardPage extends ConsumerWidget {
                 );
               },
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
 
             // 2) 지금 처리할 일 (미지정 청소 + 임박)
             _SectionHeader(title: '지금 처리할 일', danger: true),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             unassigned.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Text('오류: $e', style: const TextStyle(color: AppColors.danger)),
+              loading: () => Center(child: CircularProgressIndicator()),
+              error: (e, _) => Text('오류: $e', style: TextStyle(color: AppColors.danger)),
               data: (list) {
                 final urgent = list.take(5).toList();
                 if (urgent.isEmpty) {
@@ -180,7 +180,7 @@ class ManagerDashboardPage extends ConsumerWidget {
                 );
               },
             ),
-            const SizedBox(height: 18),
+            SizedBox(height: 18),
 
             // 3) 진행 중 청소 (배정됐지만 미완료)
             todayCleanings.when(
@@ -193,9 +193,9 @@ class ManagerDashboardPage extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
                     const _SectionHeader(title: '진행 중'),
-                    const SizedBox(height: 10),
+                    SizedBox(height: 10),
                     ...inProgress.map((c) => _InProgressCard(cleaning: c, branches: branches)),
-                    const SizedBox(height: 18),
+                    SizedBox(height: 18),
                   ],
                 );
               },
@@ -203,10 +203,10 @@ class ManagerDashboardPage extends ConsumerWidget {
 
             // 특이사항 섹션
             _SectionHeader(title: '특이사항', actionText: ''),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             notes.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Text('오류: $e', style: const TextStyle(color: AppColors.danger)),
+              loading: () => Center(child: CircularProgressIndicator()),
+              error: (e, _) => Text('오류: $e', style: TextStyle(color: AppColors.danger)),
               data: (list) {
                 if (list.isEmpty) {
                   return _emptyBox('아직 등록된 특이사항이 없습니다');
@@ -216,7 +216,7 @@ class ManagerDashboardPage extends ConsumerWidget {
                 );
               },
             ),
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
 
             // (옛 "청소 일정 미입력" 섹션은 상단 "지금 처리할 일"로 통합)
 
@@ -238,7 +238,7 @@ class ManagerDashboardPage extends ConsumerWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          title: const Text('사용자 추가'),
+          title: Text('사용자 추가'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -248,14 +248,14 @@ class ManagerDashboardPage extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.panel2,
+                    color: context.brand.panel2,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('일괄 추가 (PIN=000000)', style: TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 6),
+                      Text('일괄 추가 (PIN=000000)', style: TextStyle(fontSize: 11, color: context.brand.muted, fontWeight: FontWeight.w700)),
+                      SizedBox(height: 6),
                       Wrap(
                         spacing: 6,
                         runSpacing: 4,
@@ -268,43 +268,43 @@ class ManagerDashboardPage extends ConsumerWidget {
                             },
                             style: FilledButton.styleFrom(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                              textStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                               minimumSize: const Size(0, 28),
                             ),
-                            child: const Text('초기 6명 추가'),
+                            child: Text('초기 6명 추가'),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 4),
-                      const Text(
+                      SizedBox(height: 4),
+                      Text(
                         '박제인(매니저), 송현주(실장), 에블린·김소영·리첼·조은희(청소원)',
-                        style: TextStyle(fontSize: 10, color: AppColors.dim),
+                        style: TextStyle(fontSize: 10, color: context.brand.dim),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 14),
-                const Text('또는 개별 추가', style: TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
+                SizedBox(height: 14),
+                Text('또는 개별 추가', style: TextStyle(fontSize: 11, color: context.brand.muted, fontWeight: FontWeight.w700)),
+                SizedBox(height: 8),
                 TextField(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: '이름',
                     hintText: '예: 박제인',
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 TextField(
                   controller: pinCtrl,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: '초기 PIN',
                   ),
                   keyboardType: TextInputType.number,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   value: role,
-                  decoration: const InputDecoration(labelText: '역할'),
+                  decoration: InputDecoration(labelText: '역할'),
                   items: const [
                     DropdownMenuItem(value: 'cleaner', child: Text('청소원')),
                     DropdownMenuItem(value: 'chief', child: Text('실장')),
@@ -318,7 +318,7 @@ class ManagerDashboardPage extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: loading ? null : () => Navigator.pop(ctx),
-              child: const Text('취소'),
+              child: Text('취소'),
             ),
             FilledButton(
               onPressed: loading
@@ -348,8 +348,8 @@ class ManagerDashboardPage extends ConsumerWidget {
                       }
                     },
               child: loading
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('추가'),
+                  ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text('추가'),
             ),
           ],
         ),
@@ -411,7 +411,7 @@ class ManagerDashboardPage extends ConsumerWidget {
         children: [
           if (icon != null) ...[
             Icon(icon, color: color ?? AppColors.muted, size: 18),
-            const SizedBox(width: 8),
+            SizedBox(width: 8),
           ],
           Text(
             text,
@@ -434,20 +434,20 @@ class ManagerDashboardPage extends ConsumerWidget {
     final selected = await showDialog<UserModel>(
       context: context,
       builder: (ctx) => SimpleDialog(
-        title: const Text('청소원 배정'),
+        title: Text('청소원 배정'),
         children: cleaners.map((u) => SimpleDialogOption(
           onPressed: () => Navigator.pop(ctx, u),
           child: Row(
             children: [
               Container(
                 width: 32, height: 32,
-                decoration: const BoxDecoration(color: AppColors.branch1, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: AppColors.branch1, shape: BoxShape.circle),
                 child: Center(
-                  child: Text(u.name[0], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
+                  child: Text(u.name[0], style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14)),
                 ),
               ),
-              const SizedBox(width: 12),
-              Text(u.name, style: const TextStyle(fontSize: 14)),
+              SizedBox(width: 12),
+              Text(u.name, style: TextStyle(fontSize: 14)),
             ],
           ),
         )).toList(),
@@ -519,7 +519,7 @@ class _ProgressOverviewCard extends StatelessWidget {
                   children: [
                     Text(
                       '$pctInt%',
-                      style: const TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
+                      style: TextStyle(color: Colors.white, fontSize: 24, fontWeight: FontWeight.w800),
                     ),
                     Text(
                       '$done/$total',
@@ -530,18 +530,18 @@ class _ProgressOverviewCard extends StatelessWidget {
               ],
             ),
           ),
-          const SizedBox(width: 20),
+          SizedBox(width: 20),
           // 우측: 호점별 막대 + 라벨
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text(
+                Text(
                   '오늘 청소 진행률',
                   style: TextStyle(color: Colors.white70, fontSize: 11, fontWeight: FontWeight.w600),
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 ...branches.map((b) {
                   final bList = todayList.where((c) => c.branchId == b.id).toList();
                   final bTotal = bList.length;
@@ -555,7 +555,7 @@ class _ProgressOverviewCard extends StatelessWidget {
                           width: 36,
                           child: Text(
                             b.name,
-                            style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
+                            style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w700),
                           ),
                         ),
                         Expanded(
@@ -569,7 +569,7 @@ class _ProgressOverviewCard extends StatelessWidget {
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         SizedBox(
                           width: 28,
                           child: Text(
@@ -616,9 +616,9 @@ class _InProgressCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.panel,
+        color: context.brand.panel,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.brand.line),
       ),
       child: Row(
         children: [
@@ -627,15 +627,15 @@ class _InProgressCard extends StatelessWidget {
             height: 38,
             decoration: BoxDecoration(color: branchColor, borderRadius: BorderRadius.circular(2)),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Row(
                   children: [
-                    Text(branch.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                    const SizedBox(width: 6),
+                    Text(branch.name, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                    SizedBox(width: 6),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
                       decoration: BoxDecoration(
@@ -644,15 +644,15 @@ class _InProgressCard extends StatelessWidget {
                       ),
                       child: Text(
                         assigneeName,
-                        style: const TextStyle(color: AppColors.branch1, fontSize: 10, fontWeight: FontWeight.w700),
+                        style: TextStyle(color: AppColors.branch1, fontSize: 10, fontWeight: FontWeight.w700),
                       ),
                     ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   '진행 중 · $progressTxt',
-                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                  style: TextStyle(color: context.brand.muted, fontSize: 11),
                 ),
               ],
             ),
@@ -665,7 +665,7 @@ class _InProgressCard extends StatelessWidget {
                 child: LinearProgressIndicator(
                   value: cleaning.checkedCount / cleaning.checklist.length,
                   minHeight: 6,
-                  backgroundColor: AppColors.line,
+                  backgroundColor: context.brand.line,
                   valueColor: AlwaysStoppedAnimation<Color>(branchColor),
                 ),
               ),
@@ -700,15 +700,15 @@ class _StatsGrid extends StatelessWidget {
       mainAxisSpacing: 8,
       childAspectRatio: 1.7,
       children: [
-        _statCard('$checkOuts', '오늘 체크아웃', sub: '1·2·3호점', color: AppColors.text),
-        _statCard('$checkIns', '오늘 체크인', sub: '예약 기준', color: AppColors.text),
+        _statCard('$checkOuts', '오늘 체크아웃', sub: '1·2·3호점', color: context.brand.text),
+        _statCard('$checkIns', '오늘 체크인', sub: '예약 기준', color: context.brand.text),
         _statCard('$completed', '청소 완료', sub: '진행 ${checkOuts - completed}건', color: AppColors.ok),
         _statCard(
           '$unassigned',
           '미지정 청소',
           sub: unassigned > 0 ? '⚠ 확인 필요' : '없음',
-          color: unassigned > 0 ? AppColors.danger : AppColors.muted,
-          subColor: unassigned > 0 ? AppColors.danger : AppColors.muted,
+          color: unassigned > 0 ? AppColors.danger : context.brand.muted,
+          subColor: unassigned > 0 ? AppColors.danger : context.brand.muted,
         ),
       ],
     );
@@ -727,10 +727,10 @@ class _StatsGrid extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Text(num, style: TextStyle(fontSize: 24, fontWeight: FontWeight.w800, color: color)),
-          const SizedBox(height: 2),
-          Text(label, style: const TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.w600)),
+          SizedBox(height: 2),
+          Text(label, style: TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.w600)),
           if (sub != null) ...[
-            const SizedBox(height: 4),
+            SizedBox(height: 4),
             Text(sub, style: TextStyle(color: subColor ?? AppColors.muted, fontSize: 10)),
           ],
         ],
@@ -756,19 +756,19 @@ class _SectionHeader extends StatelessWidget {
         Row(
           children: [
             if (danger) ...[
-              const Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 16),
-              const SizedBox(width: 4),
+              Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 16),
+              SizedBox(width: 4),
             ],
             Text(
               title,
-              style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: AppColors.text),
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.brand.text),
             ),
             if (count != null && count! > 0) ...[
-              const SizedBox(width: 6),
+              SizedBox(width: 6),
               Text(
                 '($count건)',
                 style: TextStyle(
-                  color: danger ? AppColors.danger : AppColors.muted,
+                  color: danger ? AppColors.danger : context.brand.muted,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),
@@ -777,7 +777,7 @@ class _SectionHeader extends StatelessWidget {
           ],
         ),
         if (actionText != null && actionText!.isNotEmpty)
-          Text(actionText!, style: const TextStyle(color: AppColors.branch1, fontSize: 12, fontWeight: FontWeight.w600)),
+          Text(actionText!, style: TextStyle(color: AppColors.branch1, fontSize: 12, fontWeight: FontWeight.w600)),
       ],
     );
   }
@@ -806,7 +806,7 @@ class _CompletedReportCard extends StatelessWidget {
     final photoCount = cleaning.photoUrls.length;
 
     return Material(
-      color: AppColors.panel,
+      color: context.brand.panel,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: () => context.push('/cleaning/${cleaning.id}/complete'),
@@ -816,7 +816,7 @@ class _CompletedReportCard extends StatelessWidget {
           padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.line),
+            border: Border.all(color: context.brand.line),
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -838,32 +838,32 @@ class _CompletedReportCard extends StatelessWidget {
                       style: TextStyle(color: branchColor, fontSize: 11, fontWeight: FontWeight.w700),
                     ),
                   ),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.check_circle, size: 14, color: AppColors.ok),
-                  const SizedBox(width: 4),
+                  SizedBox(width: 8),
+                  Icon(Icons.check_circle, size: 14, color: AppColors.ok),
+                  SizedBox(width: 4),
                   Expanded(
                     child: Text(
                       '$assigneeName · $completedStr',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12),
                       maxLines: 1, overflow: TextOverflow.ellipsis,
                     ),
                   ),
                   // 사진 개수 표시 (실제 사진은 카드 탭 시 상세에서 확인)
                   if (photoCount > 0) ...[
-                    const Icon(Icons.photo_library_outlined, size: 13, color: AppColors.muted),
-                    const SizedBox(width: 3),
+                    Icon(Icons.photo_library_outlined, size: 13, color: context.brand.muted),
+                    SizedBox(width: 3),
                     Text(
                       '$photoCount',
-                      style: const TextStyle(color: AppColors.muted, fontSize: 11, fontWeight: FontWeight.w600),
+                      style: TextStyle(color: context.brand.muted, fontSize: 11, fontWeight: FontWeight.w600),
                     ),
-                    const SizedBox(width: 6),
+                    SizedBox(width: 6),
                   ],
-                  const Icon(Icons.chevron_right, color: AppColors.dim, size: 18),
+                  Icon(Icons.chevron_right, color: context.brand.dim, size: 18),
                 ],
               ),
               // 메모
               if (hasMemo) ...[
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(8),
@@ -875,12 +875,12 @@ class _CompletedReportCard extends StatelessWidget {
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Icon(Icons.sticky_note_2_outlined, size: 14, color: AppColors.warn),
-                      const SizedBox(width: 6),
+                      Icon(Icons.sticky_note_2_outlined, size: 14, color: AppColors.warn),
+                      SizedBox(width: 6),
                       Expanded(
                         child: Text(
                           cleaning.memo,
-                          style: const TextStyle(fontSize: 12, color: AppColors.text, height: 1.4),
+                          style: TextStyle(fontSize: 12, color: context.brand.text, height: 1.4),
                           maxLines: 3, overflow: TextOverflow.ellipsis,
                         ),
                       ),
@@ -917,9 +917,9 @@ class _NoteCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.panel,
+        color: context.brand.panel,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.brand.line),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -937,7 +937,7 @@ class _NoteCard extends StatelessWidget {
               style: TextStyle(color: branchColor, fontSize: 11, fontWeight: FontWeight.w700),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -947,20 +947,20 @@ class _NoteCard extends StatelessWidget {
                     Expanded(
                       child: Text(
                         '$assigneeName · $dateStr',
-                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                        style: TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
                       ),
                     ),
                     if (cleaning.photoUrls.isNotEmpty)
                       Text(
                         '📷 ${cleaning.photoUrls.length}',
-                        style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                        style: TextStyle(color: context.brand.muted, fontSize: 11),
                       ),
                   ],
                 ),
-                const SizedBox(height: 4),
+                SizedBox(height: 4),
                 Text(
                   cleaning.memo,
-                  style: const TextStyle(fontSize: 12, color: AppColors.text, height: 1.4),
+                  style: TextStyle(fontSize: 12, color: context.brand.text, height: 1.4),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -993,9 +993,9 @@ class _UnassignedCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.fromLTRB(10, 10, 10, 10),
       decoration: BoxDecoration(
-        color: AppColors.panel,
+        color: context.brand.panel,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.brand.line),
         // 좌측 빨간 보더는 컬러바로 처리
       ),
       child: Row(
@@ -1018,17 +1018,17 @@ class _UnassignedCard extends StatelessWidget {
               style: TextStyle(color: branchColor, fontSize: 11, fontWeight: FontWeight.w700),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
                   DateFormat('M/d (E)', 'ko').format(cleaning.scheduledDate),
-                  style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                 ),
-                const SizedBox(height: 2),
-                const Text('iCal 예약 · 미지정', style: TextStyle(color: AppColors.muted, fontSize: 11)),
+                SizedBox(height: 2),
+                Text('iCal 예약 · 미지정', style: TextStyle(color: context.brand.muted, fontSize: 11)),
               ],
             ),
           ),
@@ -1038,9 +1038,9 @@ class _UnassignedCard extends StatelessWidget {
               onPressed: onAssign,
               style: FilledButton.styleFrom(
                 padding: const EdgeInsets.symmetric(horizontal: 12),
-                textStyle: const TextStyle(fontSize: 12),
+                textStyle: TextStyle(fontSize: 12),
               ),
-              child: const Text('배정'),
+              child: Text('배정'),
             ),
           ),
         ],
@@ -1061,28 +1061,28 @@ class _UserCard extends StatelessWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(10),
       decoration: BoxDecoration(
-        color: AppColors.panel,
+        color: context.brand.panel,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.brand.line),
       ),
       child: Row(
         children: [
           Container(
             width: 32, height: 32,
-            decoration: const BoxDecoration(color: AppColors.branch1, shape: BoxShape.circle),
+            decoration: BoxDecoration(color: AppColors.branch1, shape: BoxShape.circle),
             child: Center(
-              child: Text(user.name[0], style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
+              child: Text(user.name[0], style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 13)),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(user.name, style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
+                Text(user.name, style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13)),
                 Text(
                   user.isManager ? '매니저' : user.isChief ? '실장' : '청소원',
-                  style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                  style: TextStyle(color: context.brand.muted, fontSize: 11),
                 ),
               ],
             ),
@@ -1090,7 +1090,7 @@ class _UserCard extends StatelessWidget {
           Container(
             width: 8, height: 8,
             decoration: BoxDecoration(
-              color: user.active ? AppColors.ok : AppColors.dim,
+              color: user.active ? AppColors.ok : context.brand.dim,
               shape: BoxShape.circle,
             ),
           ),

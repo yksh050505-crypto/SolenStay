@@ -28,11 +28,11 @@ class AppBottomNav extends StatelessWidget {
     return Container(
       height: 68,
       decoration: BoxDecoration(
-        color: AppColors.panel,
-        border: const Border(top: BorderSide(color: AppColors.line)),
+        color: context.brand.panel,
+        border: Border(top: BorderSide(color: context.brand.line)),
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.04),
+            color: Colors.black.withOpacity(0.10),
             blurRadius: 8,
             offset: const Offset(0, -2),
           ),
@@ -86,7 +86,7 @@ class _NavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = active ? AppColors.branch1 : AppColors.dim;
+    final color = active ? AppColors.branch1 : context.brand.dim;
     return Expanded(
       child: Material(
         color: Colors.transparent,

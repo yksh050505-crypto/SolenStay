@@ -44,7 +44,7 @@ class _ReservationManagementPageState extends ConsumerState<ReservationManagemen
           title: const Text('권한 없음'),
           leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
         ),
-        body: const Center(child: Text('매니저만 접근 가능합니다', style: TextStyle(color: AppColors.muted))),
+        body: Center(child: Text('매니저만 접근 가능합니다', style: TextStyle(color: context.brand.muted))),
       );
     }
 
@@ -133,16 +133,16 @@ class _MonthHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
       child: Row(
         children: [
-          IconButton(onPressed: onPrev, icon: const Icon(Icons.chevron_left, color: AppColors.text), iconSize: 22),
+          IconButton(onPressed: onPrev, icon: Icon(Icons.chevron_left, color: context.brand.text), iconSize: 22),
           Expanded(
             child: Center(
               child: Text(
                 DateFormat('yyyy년 M월', 'ko').format(month),
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: context.brand.text),
               ),
             ),
           ),
-          IconButton(onPressed: onNext, icon: const Icon(Icons.chevron_right, color: AppColors.text), iconSize: 22),
+          IconButton(onPressed: onNext, icon: Icon(Icons.chevron_right, color: context.brand.text), iconSize: 22),
         ],
       ),
     );
@@ -165,7 +165,7 @@ class _WeekdayRow extends StatelessWidget {
               child: Text(
                 _labels[i],
                 style: TextStyle(
-                  color: isWeekend ? AppColors.danger : AppColors.muted,
+                  color: isWeekend ? AppColors.danger : context.brand.muted,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -213,10 +213,33 @@ class _MonthGrid extends StatelessWidget {
     final weeks = _buildWeeks();
     return LayoutBuilder(
       builder: (context, constraints) {
-        // 전체 높이를 주 수로 나눠서 row 높이 결정
-        final availableH = constraints.maxHeight;
-        final rowH = (availableH / weeks.length).clamp(70.0, 160.0);
-        return Padding(
+        // 1. 한 달 전체에서 가장 많은 트랙을 가진 주 찾기 → 모든 row 통일
+        int maxTrackCount = 1;
+        for (final week in weeks) {
+          final pills = _WeekRow.layoutPillsFor(
+            days: week,
+            month: month,
+            reservations: reservations,
+          );
+          if (pills.isNotEmpty) {
+            final c = pills.map((p) => p.track).fold<int>(0, (m, v) => v > m ? v : m) + 1;
+            if (c > maxTrackCount) maxTrackCount = c;
+          }
+        }
+
+        // 2. 트랙 수에 맞는 필요 height 계산
+        const pillH = 22.0;
+        const pillVGap = 4.0;
+        const pillBottomBase = 10.0;
+        const topPadForDate = 30.0; // 날짜 숫자 + 여백
+        final tracksTotalH = pillH * maxTrackCount + pillVGap * (maxTrackCount - 1);
+        final neededRowH = pillBottomBase + tracksTotalH + topPadForDate;
+
+        // 3. 화면 균등 분배 후보 vs 필요 height → 큰 쪽 채택
+        final equalRowH = constraints.maxHeight / weeks.length;
+        final rowH = neededRowH > equalRowH ? neededRowH : equalRowH.clamp(80.0, 200.0);
+
+        return SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Column(
             children: weeks.map((week) => _WeekRow(
@@ -250,11 +273,17 @@ class _WeekRow extends StatelessWidget {
     required this.onDayTap,
   });
 
-  DateTime _maxDay(DateTime a, DateTime b) => a.isAfter(b) ? a : b;
-  DateTime _minDay(DateTime a, DateTime b) => a.isBefore(b) ? a : b;
-  bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
+  static DateTime _maxDay(DateTime a, DateTime b) => a.isAfter(b) ? a : b;
+  static DateTime _minDay(DateTime a, DateTime b) => a.isBefore(b) ? a : b;
+  static bool _sameDay(DateTime a, DateTime b) => a.year == b.year && a.month == b.month && a.day == b.day;
 
-  List<_PillLayout> _layoutPills() {
+  /// 한 주의 pill 레이아웃 + 트랙 배정. _MonthGrid에서 미리 호출하여
+  /// 모든 주의 최대 트랙 수를 알아내고 row 높이를 통일할 때 사용.
+  static List<_PillLayout> layoutPillsFor({
+    required List<DateTime> days,
+    required DateTime month,
+    required List<ReservationModel> reservations,
+  }) {
     final weekStart = DateTime(days.first.year, days.first.month, days.first.day);
     final weekEnd = DateTime(days.last.year, days.last.month, days.last.day);
     final monthStart = DateTime(month.year, month.month, 1);
@@ -283,43 +312,62 @@ class _WeekRow extends StatelessWidget {
       ));
     }
 
-    // 충돌 회피 트랙 배정 (greedy interval coloring):
-    // 컬럼 범위가 겹치는 예약은 서로 다른 트랙에 배치 → 같은 호점 중복 예약도 모두 보임.
-    // 호점 순서를 우선해 가능한 한 호점별 트랙 정렬을 유지.
-    int branchPriority(String branchId) {
-      switch (branchId) {
-        case 'branch1': return 0;
-        case 'branch2': return 1;
-        case 'branch3': return 2;
-        default: return 3;
-      }
+    // 호점별로 트랙 영역을 분리한다.
+    // 1호점은 항상 윗쪽, 2호점 가운데, 3호점 아래쪽 → 시각적으로 호점별 줄 구분.
+    // 같은 호점 내에서만 중복 시 트랙 추가(아래 방향).
+    const orderedBranches = ['branch1', 'branch2', 'branch3'];
+
+    final byBranch = <String, List<_ResRange>>{};
+    for (final r in visibleRes) {
+      byBranch.putIfAbsent(r.reservation.branchId, () => []).add(r);
     }
 
-    visibleRes.sort((a, b) {
-      final c = branchPriority(a.reservation.branchId)
-          .compareTo(branchPriority(b.reservation.branchId));
-      if (c != 0) return c;
-      final s = a.startCol.compareTo(b.startCol);
-      if (s != 0) return s;
-      return a.reservation.id.compareTo(b.reservation.id);
-    });
-
-    final trackLastCol = <int>[]; // 트랙별 마지막 점유 endCol
     final result = <_PillLayout>[];
-    for (final res in visibleRes) {
-      var track = 0;
-      while (track < trackLastCol.length && trackLastCol[track] >= res.startCol) {
-        track++;
+    int trackOffset = 0;
+
+    void assignGroup(List<_ResRange> list) {
+      list.sort((a, b) {
+        final s = a.startCol.compareTo(b.startCol);
+        if (s != 0) return s;
+        return a.reservation.id.compareTo(b.reservation.id);
+      });
+      final trackLastCol = <int>[];
+      int maxLocalTrack = 0;
+      for (final res in list) {
+        var t = 0;
+        while (t < trackLastCol.length && trackLastCol[t] >= res.startCol) {
+          t++;
+        }
+        if (t == trackLastCol.length) {
+          trackLastCol.add(res.endCol);
+        } else {
+          trackLastCol[t] = res.endCol;
+        }
+        if (t > maxLocalTrack) maxLocalTrack = t;
+        result.add(_PillLayout(range: res, track: trackOffset + t));
       }
-      if (track == trackLastCol.length) {
-        trackLastCol.add(res.endCol);
-      } else {
-        trackLastCol[track] = res.endCol;
-      }
-      result.add(_PillLayout(range: res, track: track));
+      trackOffset += maxLocalTrack + 1;
     }
+
+    // 알려진 호점 순서대로 처리
+    for (final bid in orderedBranches) {
+      final list = byBranch.remove(bid);
+      if (list == null || list.isEmpty) continue;
+      assignGroup(list);
+    }
+    // 그 외 호점이 있으면 뒤에 붙임
+    for (final entry in byBranch.entries) {
+      assignGroup(entry.value);
+    }
+
     return result;
   }
+
+  List<_PillLayout> _layoutPills() => layoutPillsFor(
+        days: days,
+        month: month,
+        reservations: reservations,
+      );
 
   @override
   Widget build(BuildContext context) {
@@ -327,9 +375,8 @@ class _WeekRow extends StatelessWidget {
     final trackCount = pills.isEmpty ? 1 : pills.map((p) => p.track).fold<int>(0, (m, v) => v > m ? v : m) + 1;
     const pillH = 22.0;
     const pillVGap = 4.0;
-    // 트랙들을 row 중앙에 세로로 배치
-    final tracksTotalH = pillH * trackCount + pillVGap * (trackCount - 1);
-    final pillBottomBase = (rowHeight - tracksTotalH) / 2;
+    // pill 들은 셀 하단부터 위로 쌓기 → 날짜 숫자(좌상단)와 안 겹침
+    const pillBottomBase = 10.0;
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -369,6 +416,12 @@ class _WeekRow extends StatelessWidget {
                 final width = right - left;
                 final invTrack = (trackCount - 1) - p.track;
                 final bottom = pillBottomBase + invTrack * (pillH + pillVGap);
+                final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+                final coDay = DateTime(r.reservation.checkOut.year, r.reservation.checkOut.month, r.reservation.checkOut.day);
+                final isPast = coDay.isBefore(today);
+                if (isPast) return const SizedBox.shrink();
+                // 한 주의 시작 셀(일요일) — 이전 주에서 이어진 경우라도 텍스트 재표시
+                final isWeekStart = r.startCol == 0 && !r.isStartCap;
                 return Positioned(
                   left: left, width: width, bottom: bottom, height: pillH,
                   child: GestureDetector(
@@ -377,6 +430,7 @@ class _WeekRow extends StatelessWidget {
                       reservation: r.reservation,
                       isStartCap: r.isStartCap,
                       isEndCap: r.isEndCap,
+                      isWeekStart: isWeekStart,
                     ),
                   ),
                 );
@@ -432,10 +486,10 @@ class _DayCard extends StatelessWidget {
         height: height - 6,
         margin: const EdgeInsets.symmetric(vertical: 3),
         decoration: BoxDecoration(
-          color: AppColors.panel,
+          color: context.brand.panel,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: isToday ? AppColors.branch1 : const Color(0xFFEBEBEB),
+            color: isToday ? AppColors.branch1 : context.brand.line,
             width: isToday ? 1.2 : 0.8,
           ),
         ),
@@ -448,7 +502,7 @@ class _DayCard extends StatelessWidget {
               style: TextStyle(
                 fontSize: 12,
                 fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
-                color: isToday ? AppColors.branch1 : (isWeekend ? AppColors.danger : AppColors.text),
+                color: isToday ? AppColors.branch1 : (isWeekend ? AppColors.danger : context.brand.text),
               ),
             ),
           ),
@@ -462,27 +516,58 @@ class _Pill extends StatelessWidget {
   final ReservationModel reservation;
   final bool isStartCap;
   final bool isEndCap;
-  const _Pill({required this.reservation, required this.isStartCap, required this.isEndCap});
+  /// 한 주의 시작 셀(일요일)에 위치한 pill이면 true.
+  /// isStartCap이 false라도 (이전 주에서 이어진 pill) 다음 주 첫 셀에 텍스트 표시.
+  final bool isWeekStart;
+  const _Pill({required this.reservation, required this.isStartCap, required this.isEndCap, this.isWeekStart = false});
 
   @override
   Widget build(BuildContext context) {
     final color = AppColors.branchColor(reservation.branchId);
+    final radius = BorderRadius.only(
+      topLeft: Radius.circular(isStartCap ? 11 : 0),
+      bottomLeft: Radius.circular(isStartCap ? 11 : 0),
+      topRight: Radius.circular(isEndCap ? 11 : 0),
+      bottomRight: Radius.circular(isEndCap ? 11 : 0),
+    );
+    final borderSide = BorderSide(color: Colors.black.withOpacity(0.25), width: 1);
     return ClipRRect(
-      borderRadius: BorderRadius.only(
-        topLeft: Radius.circular(isStartCap ? 11 : 0),
-        bottomLeft: Radius.circular(isStartCap ? 11 : 0),
-        topRight: Radius.circular(isEndCap ? 11 : 0),
-        bottomRight: Radius.circular(isEndCap ? 11 : 0),
-      ),
+      borderRadius: radius,
       child: Container(
-        color: color,
+        decoration: BoxDecoration(
+          color: color,
+          borderRadius: radius,
+          border: Border(
+            top: borderSide,
+            bottom: borderSide,
+            left: isStartCap ? borderSide : BorderSide.none,
+            right: isEndCap ? borderSide : BorderSide.none,
+          ),
+        ),
         padding: EdgeInsets.only(left: isStartCap ? 8 : 0, right: isEndCap ? 8 : 0),
         alignment: Alignment.centerLeft,
         child: isStartCap
             ? Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const Icon(Icons.edit, size: 11, color: Colors.white),
+                  // 호점 라벨 (1호/2호/3호)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Text(
+                      AppColors.branchShortLabel(reservation.branchId),
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: color,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.3,
+                        height: 1.1,
+                      ),
+                    ),
+                  ),
                   const SizedBox(width: 4),
                   Flexible(
                     child: Text(
@@ -667,67 +752,181 @@ class _EditReservationDialogState extends State<_EditReservationDialog> {
   @override
   Widget build(BuildContext context) {
     final isEdit = widget.existing != null;
-    final fmt = DateFormat('yyyy-MM-dd (E)', 'ko');
+    final fmt = DateFormat('M월 d일 (E)', 'ko');
+    final nights = _checkOut.difference(_checkIn).inDays.clamp(0, 999);
 
     return AlertDialog(
+      titlePadding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+      contentPadding: const EdgeInsets.fromLTRB(20, 6, 20, 0),
+      actionsPadding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
       title: Text(isEdit ? '예약 수정' : '예약 추가'),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            DropdownButtonFormField<String>(
-              value: _branchId,
-              decoration: const InputDecoration(labelText: '호점', isDense: true),
-              items: widget.branches.map((b) => DropdownMenuItem(value: b.id, child: Text(b.name))).toList(),
-              onChanged: (v) => setState(() => _branchId = v!),
+            // 호점 + OTA — 한 줄
+            Row(
+              children: [
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _branchId,
+                    decoration: const InputDecoration(labelText: '호점', isDense: true),
+                    items: widget.branches
+                        .map((b) => DropdownMenuItem(value: b.id, child: Text(b.name)))
+                        .toList(),
+                    onChanged: (v) => setState(() => _branchId = v!),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: DropdownButtonFormField<String>(
+                    value: _ota,
+                    decoration: const InputDecoration(labelText: 'OTA', isDense: true),
+                    items: _otaOptions
+                        .map((o) => DropdownMenuItem(value: o, child: Text(o.toUpperCase())))
+                        .toList(),
+                    onChanged: (v) => setState(() => _ota = v!),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 10),
-            DropdownButtonFormField<String>(
-              value: _ota,
-              decoration: const InputDecoration(labelText: 'OTA', isDense: true),
-              items: _otaOptions.map((o) => DropdownMenuItem(value: o, child: Text(o.toUpperCase()))).toList(),
-              onChanged: (v) => setState(() => _ota = v!),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _name,
-              decoration: const InputDecoration(labelText: '게스트명', isDense: true),
-            ),
-            const SizedBox(height: 10),
-            TextField(
-              controller: _count,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(labelText: '인원', isDense: true),
+            // 게스트명 + 인원 — 한 줄
+            Row(
+              children: [
+                Expanded(
+                  flex: 2,
+                  child: TextField(
+                    controller: _name,
+                    decoration: const InputDecoration(labelText: '게스트명', isDense: true),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  flex: 1,
+                  child: TextField(
+                    controller: _count,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(labelText: '인원', isDense: true, suffixText: '명'),
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 14),
-            OutlinedButton.icon(
-              onPressed: () => _pickDate(true),
-              icon: const Icon(Icons.calendar_today, size: 14),
-              label: Text('체크인: ${fmt.format(_checkIn)}'),
-            ),
-            const SizedBox(height: 6),
-            OutlinedButton.icon(
-              onPressed: () => _pickDate(false),
-              icon: const Icon(Icons.calendar_today, size: 14),
-              label: Text('체크아웃: ${fmt.format(_checkOut)}'),
+            // 체크인 / 체크아웃 — 한 줄 + 박스 안에 정리
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: context.brand.panel2,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: context.brand.line),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: _DateField(
+                          label: '체크인',
+                          dateText: fmt.format(_checkIn),
+                          onTap: () => _pickDate(true),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Icon(Icons.arrow_forward, size: 14, color: context.brand.dim),
+                      const SizedBox(width: 6),
+                      Expanded(
+                        child: _DateField(
+                          label: '체크아웃',
+                          dateText: fmt.format(_checkOut),
+                          onTap: () => _pickDate(false),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    '$nights박',
+                    style: TextStyle(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: nights > 0 ? AppColors.branch1 : AppColors.danger,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
       actions: [
-        if (isEdit)
-          TextButton(
-            onPressed: _saving ? null : _delete,
-            style: TextButton.styleFrom(foregroundColor: AppColors.danger),
-            child: const Text('삭제'),
+        SizedBox(
+          width: double.infinity,
+          child: Row(
+            children: [
+              if (isEdit)
+                TextButton.icon(
+                  onPressed: _saving ? null : _delete,
+                  icon: const Icon(Icons.delete_outline, size: 14, color: AppColors.danger),
+                  label: const Text('삭제', style: TextStyle(color: AppColors.danger, fontSize: 12)),
+                  style: TextButton.styleFrom(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                    minimumSize: Size.zero,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                  ),
+                ),
+              const Spacer(),
+              TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('취소')),
+              const SizedBox(width: 4),
+              FilledButton(
+                onPressed: _saving ? null : _save,
+                child: Text(_saving ? '저장중...' : (isEdit ? '수정' : '추가')),
+              ),
+            ],
           ),
-        TextButton(onPressed: _saving ? null : () => Navigator.pop(context), child: const Text('취소')),
-        FilledButton(
-          onPressed: _saving ? null : _save,
-          child: Text(_saving ? '저장중...' : (isEdit ? '수정' : '추가')),
         ),
       ],
+    );
+  }
+}
+
+/// 체크인/체크아웃 한 칸 — 라벨 + 날짜 + 탭 영역
+class _DateField extends StatelessWidget {
+  final String label;
+  final String dateText;
+  final VoidCallback onTap;
+  const _DateField({required this.label, required this.dateText, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(label, style: TextStyle(fontSize: 10, color: context.brand.muted, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 3),
+            Row(
+              children: [
+                Icon(Icons.calendar_today, size: 12, color: context.brand.dim),
+                const SizedBox(width: 4),
+                Flexible(
+                  child: Text(
+                    dateText,
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.brand.text),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

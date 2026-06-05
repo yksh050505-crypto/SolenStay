@@ -90,12 +90,12 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('일정'),
+        title: Text('일정'),
         automaticallyImplyLeading: false,
       ),
       bottomNavigationBar: const AppBottomNav(active: BottomTab.calendar),
       body: reservationsAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(child: Text('오류: $e')),
         data: (reservations) {
           final selectedDay = _selectedDay ?? DateTime.now();
@@ -154,7 +154,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                 builder: (context, scrollController) {
                   return Container(
                     decoration: BoxDecoration(
-                      color: AppColors.bg,
+                      color: context.brand.bg,
                       borderRadius: const BorderRadius.only(
                         topLeft: Radius.circular(20),
                         topRight: Radius.circular(20),
@@ -212,7 +212,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                                     width: 40,
                                     height: 4,
                                     decoration: BoxDecoration(
-                                      color: AppColors.dim,
+                                      color: context.brand.dim,
                                       borderRadius: BorderRadius.circular(2),
                                     ),
                                   ),
@@ -224,12 +224,12 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                                   children: [
                                     Text(
                                       DateFormat('M월 d일 (E)', 'ko').format(selectedDay),
-                                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                                     ),
-                                    const Spacer(),
+                                    Spacer(),
                                     if (selectedReservations.isNotEmpty)
                                       Text('${selectedReservations.length}건 숙박',
-                                          style: const TextStyle(color: AppColors.muted, fontSize: 12)),
+                                          style: TextStyle(color: context.brand.muted, fontSize: 12)),
                                   ],
                                 ),
                               ),
@@ -282,20 +282,20 @@ class _MonthHeader extends StatelessWidget {
         children: [
           IconButton(
             onPressed: onPrev,
-            icon: const Icon(Icons.chevron_left, color: AppColors.text),
+            icon: Icon(Icons.chevron_left, color: context.brand.text),
             iconSize: 22,
           ),
           Expanded(
             child: Center(
               child: Text(
                 DateFormat('yyyy년 M월', 'ko').format(month),
-                style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
+                style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16),
               ),
             ),
           ),
           IconButton(
             onPressed: onNext,
-            icon: const Icon(Icons.chevron_right, color: AppColors.text),
+            icon: Icon(Icons.chevron_right, color: context.brand.text),
             iconSize: 22,
           ),
         ],
@@ -329,8 +329,8 @@ class _BranchLegend extends StatelessWidget {
                 width: 10, height: 10,
                 decoration: BoxDecoration(color: color, shape: BoxShape.circle),
               ),
-              const SizedBox(width: 4),
-              Text(b.name, style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: AppColors.muted)),
+              SizedBox(width: 4),
+              Text(b.name, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.brand.muted)),
             ],
           );
         }).toList(),
@@ -360,7 +360,7 @@ class _WeekdayRow extends StatelessWidget {
               child: Text(
                 _labels[i],
                 style: TextStyle(
-                  color: isWeekend ? AppColors.danger : AppColors.muted,
+                  color: isWeekend ? AppColors.danger : context.brand.muted,
                   fontSize: 11,
                   fontWeight: FontWeight.w600,
                 ),
@@ -528,19 +528,17 @@ class _WeekRow extends StatelessWidget {
     final pills = _layoutPills();
     // 트랙 수에 따라 row 높이 동적 (정사각에 가깝게)
     final trackCount = pills.isEmpty ? 0 : pills.map((p) => p.track).fold<int>(0, (m, v) => v > m ? v : m) + 1;
-    const rowHeightBase = 74.0;
-    const pillH = 26.0;
-    // 트랙 사이 간격 0: 인접 호점 예약은 붙여서 표시.
-    // (빈 중간 호점은 트랙 자체가 자리를 차지하므로 그 여백은 유지됨 — 예: 1·3호점만 차면 2호점 자리 공백 유지)
-    const pillVGap = 0.0;
-    // 맨 아래 pill을 셀 하단 테두리 가까이 고정 → 단일/다중 pill 셀의 위·아래 여백이 동일,
-    // 셀은 가운데로만 늘어나서 일반 날짜와 비슷하게 보임.
-    const pillBottomBase = 10.0;
-    final rowHeight = rowHeightBase + (trackCount > 1 ? (trackCount - 1) * (pillH + pillVGap) : 0);
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        const gap = 6.0;
+        // 좁은 화면(아이폰 미니/SE 등) 자동 compact 모드 — pill 높이/여백 축소
+        final compact = constraints.maxWidth < 380;
+        final rowHeightBase = compact ? 60.0 : 74.0;
+        final pillH = compact ? 20.0 : 26.0;
+        const pillVGap = 0.0;
+        final pillBottomBase = compact ? 7.0 : 10.0;
+        final rowHeight = rowHeightBase + (trackCount > 1 ? (trackCount - 1) * (pillH + pillVGap) : 0);
+        final gap = compact ? 4.0 : 6.0;
         final cellW = (constraints.maxWidth - gap * 6) / 7;
 
         return SizedBox(
@@ -588,6 +586,13 @@ class _WeekRow extends StatelessWidget {
                 // null을 false로 떨어뜨려 초록 체크가 잘못 뜨던 버그 방지.
                 final cleaning = cleaningByResId[r.reservation.id];
                 final isUnassigned = cleaning == null || cleaning.isUnassigned;
+                final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+                final coDay = DateTime(r.reservation.checkOut.year, r.reservation.checkOut.month, r.reservation.checkOut.day);
+                final isPast = coDay.isBefore(today);
+                if (isPast) return const SizedBox.shrink();
+                // 한 주의 시작 셀(일요일, col 0)에 위치한 pill — 이전 주에서 이어진 경우라도
+                // 텍스트를 다시 표시해서 끝나는 셀에서 잘리는 경우를 보완.
+                final isWeekStart = r.startCol == 0 && !r.isStartCap;
                 return Positioned(
                   left: left,
                   width: width,
@@ -599,6 +604,7 @@ class _WeekRow extends StatelessWidget {
                       isStartCap: r.isStartCap,
                       isEndCap: r.isEndCap,
                       isUnassigned: isUnassigned,
+                      isWeekStart: isWeekStart,
                     ),
                   ),
                 );
@@ -678,7 +684,7 @@ class _DayCard extends StatelessWidget {
     } else if (isWeekend) {
       textColor = AppColors.danger;
     } else {
-      textColor = AppColors.text;
+      textColor = context.brand.text;
     }
 
     return GestureDetector(
@@ -687,7 +693,7 @@ class _DayCard extends StatelessWidget {
         height: height,
         margin: const EdgeInsets.symmetric(vertical: 3),
         decoration: BoxDecoration(
-          color: isSelected ? AppColors.branch1.withOpacity(0.06) : AppColors.panel,
+          color: isSelected ? AppColors.branch1.withOpacity(0.06) : context.brand.panel,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
             color: (isSelected || isToday) ? AppColors.branch1 : const Color(0xFFEBEBEB),
@@ -722,68 +728,99 @@ class _Pill extends StatelessWidget {
   final bool isStartCap;
   final bool isEndCap;
   final bool isUnassigned;
+  /// 한 주의 시작 셀(일요일)에 위치한 pill이면 true.
+  /// isStartCap이 false라도 (이전 주에서 이어진 pill) 다음 주 첫 셀에 텍스트를 다시 표시.
+  final bool isWeekStart;
   const _Pill({
     required this.reservation,
     required this.isStartCap,
     required this.isEndCap,
     required this.isUnassigned,
+    this.isWeekStart = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final color = AppColors.branchColor(reservation.branchId);
-    final initial = reservation.guestName.isNotEmpty ? reservation.guestName[0] : '?';
+    // pill은 항상 솔리드. 미배정 여부는 좌측 노란 ? 마커로만 표현.
+    final radius = BorderRadius.only(
+      topLeft: Radius.circular(isStartCap ? 11 : 0),
+      bottomLeft: Radius.circular(isStartCap ? 11 : 0),
+      topRight: Radius.circular(isEndCap ? 11 : 0),
+      bottomRight: Radius.circular(isEndCap ? 11 : 0),
+    );
+    final borderColor = Colors.black.withOpacity(0.25);
+    final borderSide = BorderSide(color: borderColor, width: 1);
 
-    return ClipRRect(
-      borderRadius: BorderRadius.only(
-        topLeft: Radius.circular(isStartCap ? 11 : 0),
-        bottomLeft: Radius.circular(isStartCap ? 11 : 0),
-        topRight: Radius.circular(isEndCap ? 11 : 0),
-        bottomRight: Radius.circular(isEndCap ? 11 : 0),
-      ),
-      child: Container(
+    return Container(
+      decoration: BoxDecoration(
         color: color,
-        padding: EdgeInsets.only(
-          left: isStartCap ? 3 : 0,
-          right: isEndCap ? 8 : 0,
+        borderRadius: radius,
+        border: Border(
+          top: borderSide,
+          bottom: borderSide,
+          left: isStartCap ? borderSide : BorderSide.none,
+          right: isEndCap ? borderSide : BorderSide.none,
         ),
-        alignment: Alignment.centerLeft,
-        child: isStartCap
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Container(
-                    width: 20,
-                    height: 20,
-                    decoration: BoxDecoration(
-                      color: isUnassigned ? AppColors.warn : AppColors.ok,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1),
-                    ),
-                    alignment: Alignment.center,
-                    child: isUnassigned
-                        ? const Text('!', style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.w900, height: 1.0))
-                        : const Icon(Icons.check, size: 13, color: Colors.white),
-                  ),
-                  const SizedBox(width: 5),
-                  Flexible(
-                    child: Text(
-                      '${reservation.guestName}(${reservation.guestCount}명)',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: -0.2,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      softWrap: false,
-                    ),
-                  ),
-                ],
-              )
-            : null,
       ),
+      padding: EdgeInsets.only(
+        left: isStartCap ? 6 : 0,
+        right: isEndCap ? 8 : 0,
+      ),
+      alignment: Alignment.centerLeft,
+      child: isStartCap
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // 호점 라벨 (1호/2호/3호)
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                  child: Text(
+                    AppColors.branchShortLabel(reservation.branchId),
+                    style: TextStyle(
+                      fontSize: 9,
+                      color: color,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: -0.3,
+                      height: 1.1,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 4),
+                if (isUnassigned) ...[
+                  const Text(
+                    '?',
+                    style: TextStyle(
+                      fontSize: 15,
+                      color: Color(0xFFFACC15), // 노란색 (yellow-400)
+                      fontWeight: FontWeight.w900,
+                      height: 1.0,
+                      letterSpacing: -0.5,
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                ],
+                Flexible(
+                  child: Text(
+                    '${reservation.guestName}(${reservation.guestCount}명)',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.2,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    softWrap: false,
+                  ),
+                ),
+              ],
+            )
+          : null,
     );
   }
 }
@@ -825,10 +862,10 @@ class _BottomList extends StatelessWidget {
         padding: const EdgeInsets.fromLTRB(18, 4, 18, 80),
         children: [
           if (selectedReservations.isEmpty)
-            const Padding(
+            Padding(
               padding: EdgeInsets.symmetric(vertical: 16),
               child: Center(
-                child: Text('이 날 숙박 예약이 없습니다', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                child: Text('이 날 숙박 예약이 없습니다', style: TextStyle(color: context.brand.muted, fontSize: 12)),
               ),
             )
           else
@@ -838,12 +875,12 @@ class _BottomList extends StatelessWidget {
                 )),
 
           if (showUpcoming) ...[
-            const SizedBox(height: 14),
-            const Text(
+            SizedBox(height: 14),
+            Text(
               '다가오는 청소',
-              style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5),
+              style: TextStyle(color: context.brand.muted, fontSize: 12, fontWeight: FontWeight.w700, letterSpacing: 0.5),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             ..._buildUpcomingReservationCards(),
           ],
         ],
@@ -874,7 +911,7 @@ class _BottomList extends StatelessWidget {
 
     if (cards.isEmpty) {
       return [
-        const Padding(
+        Padding(
           padding: EdgeInsets.symmetric(vertical: 12),
           child: Center(
             child: Text('다가오는 청소가 없습니다', style: TextStyle(color: AppColors.muted, fontSize: 12)),
@@ -908,19 +945,29 @@ class _ReservationCard extends ConsumerWidget {
 
     Widget? rightAction;
     if (cleaning != null) {
-      if (canClaim) {
+      if (cleaning.isCompleted) {
+        // 완료된 청소는 본인 작업 여부 무관 — 항상 "✓ 완료"
+        rightAction = Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          decoration: BoxDecoration(
+            color: AppColors.ok.withOpacity(0.12),
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text('✓ 완료', style: TextStyle(color: AppColors.ok, fontSize: 10, fontWeight: FontWeight.w700)),
+        );
+      } else if (canClaim) {
         rightAction = SizedBox(
           height: 36,
           child: FilledButton.icon(
             onPressed: () => _claim(context, ref, cleaning.id),
             style: FilledButton.styleFrom(
               padding: const EdgeInsets.symmetric(horizontal: 14),
-              textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
+              textStyle: TextStyle(fontSize: 13, fontWeight: FontWeight.w700),
               minimumSize: const Size(0, 36),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            icon: const Icon(Icons.check, size: 16),
-            label: const Text('내가 할게요'),
+            icon: Icon(Icons.check, size: 16),
+            label: Text('내가 할게요'),
           ),
         );
       } else if (isMine) {
@@ -930,31 +977,22 @@ class _ReservationCard extends ConsumerWidget {
             color: AppColors.branch1.withOpacity(0.12),
             borderRadius: BorderRadius.circular(999),
           ),
-          child: const Text('내 작업', style: TextStyle(color: AppColors.branch1, fontSize: 10, fontWeight: FontWeight.w700)),
-        );
-      } else if (cleaning.isCompleted) {
-        rightAction = Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-          decoration: BoxDecoration(
-            color: AppColors.ok.withOpacity(0.12),
-            borderRadius: BorderRadius.circular(999),
-          ),
-          child: const Text('✓ 완료', style: TextStyle(color: AppColors.ok, fontSize: 10, fontWeight: FontWeight.w700)),
+          child: Text('내 작업', style: TextStyle(color: AppColors.branch1, fontSize: 10, fontWeight: FontWeight.w700)),
         );
       } else if (cleaning.assigneeUid != null) {
         rightAction = Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
           decoration: BoxDecoration(
-            color: AppColors.muted.withOpacity(0.12),
+            color: context.brand.muted.withOpacity(0.12),
             borderRadius: BorderRadius.circular(999),
           ),
-          child: const Text('배정됨', style: TextStyle(color: AppColors.muted, fontSize: 10, fontWeight: FontWeight.w700)),
+          child: Text('배정됨', style: TextStyle(color: context.brand.muted, fontSize: 10, fontWeight: FontWeight.w700)),
         );
       }
     }
 
     return Material(
-      color: AppColors.panel,
+      color: context.brand.panel,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: cleaning == null ? null : () => context.push('/cleaning/${cleaning.id}'),
@@ -963,7 +1001,7 @@ class _ReservationCard extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.line),
+            border: Border.all(color: context.brand.line),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -981,21 +1019,21 @@ class _ReservationCard extends ConsumerWidget {
                   style: TextStyle(color: branchColor, fontSize: 11, fontWeight: FontWeight.w700),
                 ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       '${reservation.guestName}(${reservation.guestCount}명)',
-                      style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
+                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 2),
+                    SizedBox(height: 2),
                     Text(
                       '${fmt.format(reservation.checkIn)} → ${fmt.format(reservation.checkOut)}',
-                      style: const TextStyle(color: AppColors.muted, fontSize: 11),
+                      style: TextStyle(color: context.brand.muted, fontSize: 11),
                       maxLines: 1, overflow: TextOverflow.ellipsis,
                     ),
                     if (cleaning != null && cleaning.assigneeName != null && cleaning.assigneeName!.isNotEmpty)
@@ -1003,14 +1041,14 @@ class _ReservationCard extends ConsumerWidget {
                         padding: const EdgeInsets.only(top: 3),
                         child: Row(
                           children: [
-                            Icon(Icons.person, size: 12, color: isMine ? AppColors.branch1 : AppColors.muted),
-                            const SizedBox(width: 3),
+                            Icon(Icons.person, size: 12, color: isMine ? AppColors.branch1 : context.brand.muted),
+                            SizedBox(width: 3),
                             Text(
                               cleaning.assigneeName!,
                               style: TextStyle(
                                 fontSize: 11,
                                 fontWeight: FontWeight.w600,
-                                color: isMine ? AppColors.branch1 : AppColors.muted,
+                                color: isMine ? AppColors.branch1 : context.brand.muted,
                               ),
                             ),
                           ],
@@ -1020,7 +1058,7 @@ class _ReservationCard extends ConsumerWidget {
                 ),
               ),
               if (rightAction != null) ...[
-                const SizedBox(width: 10),
+                SizedBox(width: 10),
                 rightAction,
               ],
             ],

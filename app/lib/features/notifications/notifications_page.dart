@@ -92,18 +92,18 @@ class NotificationsPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('알림'),
+        title: Text('알림'),
         leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
+          icon: Icon(Icons.arrow_back),
           onPressed: () => context.pop(),
         ),
       ),
       body: notiAsync.when(
-        loading: () => const Center(child: CircularProgressIndicator()),
+        loading: () => Center(child: CircularProgressIndicator()),
         error: (e, _) => Center(
           child: Padding(
             padding: const EdgeInsets.all(20),
-            child: Text('오류: $e', style: const TextStyle(color: AppColors.danger), textAlign: TextAlign.center),
+            child: Text('오류: $e', style: TextStyle(color: AppColors.danger), textAlign: TextAlign.center),
           ),
         ),
         data: (list) {
@@ -112,12 +112,12 @@ class NotificationsPage extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.notifications_off_outlined, size: 56, color: AppColors.dim.withOpacity(0.5)),
-                  const SizedBox(height: 12),
-                  const Text('알림이 없습니다', style: TextStyle(color: AppColors.muted, fontSize: 14, fontWeight: FontWeight.w500)),
-                  const SizedBox(height: 4),
-                  const Text('새 청소 일정, 매니저 공지, 일정 변경 알림이 여기에 표시됩니다',
-                      style: TextStyle(color: AppColors.dim, fontSize: 12),
+                  Icon(Icons.notifications_off_outlined, size: 56, color: context.brand.dim.withOpacity(0.5)),
+                  SizedBox(height: 12),
+                  Text('알림이 없습니다', style: TextStyle(color: context.brand.muted, fontSize: 14, fontWeight: FontWeight.w500)),
+                  SizedBox(height: 4),
+                  Text('새 청소 일정, 매니저 공지, 일정 변경 알림이 여기에 표시됩니다',
+                      style: TextStyle(color: context.brand.dim, fontSize: 12),
                       textAlign: TextAlign.center),
                 ],
               ),
@@ -126,7 +126,7 @@ class NotificationsPage extends ConsumerWidget {
           return ListView.separated(
             padding: const EdgeInsets.all(16),
             itemCount: list.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 8),
+            separatorBuilder: (_, __) => SizedBox(height: 8),
             itemBuilder: (_, i) => _NotificationCard(item: list[i]),
           );
         },
@@ -148,7 +148,7 @@ class _NotificationCard extends ConsumerWidget {
     final isRead = user != null && item.isReadBy(user.uid);
 
     return Material(
-      color: AppColors.panel,
+      color: context.brand.panel,
       borderRadius: BorderRadius.circular(12),
       child: InkWell(
         onTap: () async {
@@ -166,7 +166,7 @@ class _NotificationCard extends ConsumerWidget {
           padding: const EdgeInsets.all(14),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppColors.line),
+            border: Border.all(color: context.brand.line),
           ),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -181,7 +181,7 @@ class _NotificationCard extends ConsumerWidget {
                 alignment: Alignment.center,
                 child: Icon(iconData, color: color, size: 18),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -194,24 +194,24 @@ class _NotificationCard extends ConsumerWidget {
                             style: TextStyle(
                               fontWeight: isRead ? FontWeight.w600 : FontWeight.w800,
                               fontSize: 14,
-                              color: AppColors.text,
+                              color: context.brand.text,
                             ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
                         ),
-                        const SizedBox(width: 8),
+                        SizedBox(width: 8),
                         Text(
                           _formatTime(item.createdAt),
-                          style: const TextStyle(color: AppColors.dim, fontSize: 11),
+                          style: TextStyle(color: context.brand.dim, fontSize: 11),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       item.body,
                       style: TextStyle(
-                        color: AppColors.muted,
+                        color: context.brand.muted,
                         fontSize: 12,
                         height: 1.4,
                         fontWeight: isRead ? FontWeight.w400 : FontWeight.w500,
@@ -223,11 +223,11 @@ class _NotificationCard extends ConsumerWidget {
                 ),
               ),
               if (!isRead) ...[
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Container(
                   width: 8,
                   height: 8,
-                  decoration: const BoxDecoration(
+                  decoration: BoxDecoration(
                     color: AppColors.branch1,
                     shape: BoxShape.circle,
                   ),

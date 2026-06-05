@@ -29,10 +29,10 @@ class AdminSettingsPage extends ConsumerWidget {
     if (userAsync.isLoading) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('관리자 설정'),
-          leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
+          title: Text('관리자 설정'),
+          leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: () => context.pop()),
         ),
-        body: const Center(child: CircularProgressIndicator()),
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
@@ -41,16 +41,16 @@ class AdminSettingsPage extends ConsumerWidget {
     if (user == null || !user.isManager) {
       return Scaffold(
         appBar: AppBar(
-          title: const Text('권한 없음'),
-          leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
+          title: Text('권한 없음'),
+          leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: () => context.pop()),
         ),
-        body: const Center(
+        body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.lock_outline, size: 48, color: AppColors.dim),
+              Icon(Icons.lock_outline, size: 48, color: context.brand.dim),
               SizedBox(height: 12),
-              Text('매니저만 접근 가능합니다', style: TextStyle(color: AppColors.muted)),
+              Text('매니저만 접근 가능합니다', style: TextStyle(color: context.brand.muted)),
             ],
           ),
         ),
@@ -61,8 +61,8 @@ class AdminSettingsPage extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('관리자 설정'),
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => context.pop()),
+        title: Text('관리자 설정'),
+        leading: IconButton(icon: Icon(Icons.arrow_back), onPressed: () => context.pop()),
       ),
       body: SafeArea(
         child: ListView(
@@ -70,7 +70,7 @@ class AdminSettingsPage extends ConsumerWidget {
           children: [
             // 매니저 공지사항 섹션
             const _SectionHeader(title: '공지사항'),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Material(
               color: AppColors.warn.withOpacity(0.06),
               borderRadius: BorderRadius.circular(12),
@@ -92,33 +92,33 @@ class AdminSettingsPage extends ConsumerWidget {
                           color: AppColors.warn.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.campaign_outlined, color: AppColors.warn, size: 20),
+                        child: Icon(Icons.campaign_outlined, color: AppColors.warn, size: 20),
                       ),
-                      const SizedBox(width: 12),
-                      const Expanded(
+                      SizedBox(width: 12),
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('매니저 공지사항 작성', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                             SizedBox(height: 2),
-                            Text('사용자들에게 알림으로 전달됩니다', style: TextStyle(color: AppColors.muted, fontSize: 11)),
+                            Text('사용자들에게 알림으로 전달됩니다', style: TextStyle(color: context.brand.muted, fontSize: 11)),
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_right, color: AppColors.dim, size: 20),
+                      Icon(Icons.chevron_right, color: context.brand.dim, size: 20),
                     ],
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 14),
+            SizedBox(height: 14),
             // 보낸 공지 목록
             _SentNoticesSection(),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
 
             // 달력 일정 관리
             const _SectionHeader(title: '달력 일정'),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             Material(
               color: AppColors.branch1.withOpacity(0.06),
               borderRadius: BorderRadius.circular(12),
@@ -140,59 +140,59 @@ class AdminSettingsPage extends ConsumerWidget {
                           color: AppColors.branch1.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(10),
                         ),
-                        child: const Icon(Icons.calendar_month_outlined, color: AppColors.branch1, size: 20),
+                        child: Icon(Icons.calendar_month_outlined, color: AppColors.branch1, size: 20),
                       ),
-                      const SizedBox(width: 12),
-                      const Expanded(
+                      SizedBox(width: 12),
+                      Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text('예약 일정 추가/수정/삭제', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
                             SizedBox(height: 2),
-                            Text('iCal로 들어온 일정 보정 및 수동 예약 관리', style: TextStyle(color: AppColors.muted, fontSize: 11)),
+                            Text('iCal로 들어온 일정 보정 및 수동 예약 관리', style: TextStyle(color: context.brand.muted, fontSize: 11)),
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_right, color: AppColors.dim, size: 20),
+                      Icon(Icons.chevron_right, color: context.brand.dim, size: 20),
                     ],
                   ),
                 ),
               ),
             ),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
 
             // 호점 동기화 (iCal) — 각 호점의 Google Calendar iCal 주소 연결
             const _SectionHeader(title: '호점 동기화 (iCal)'),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             const _BranchSyncSection(),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
 
             // 앱 버전 등록 (Android APK 업데이트 알림용)
             const _SectionHeader(title: '앱 버전 (Android)'),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             const _AppVersionSection(),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
 
             // 사용자 관리 섹션
             Row(
               children: [
-                const Expanded(child: _SectionHeader(title: '사용자 관리')),
+                Expanded(child: _SectionHeader(title: '사용자 관리')),
                 TextButton.icon(
                   onPressed: () => _showAddUserDialog(context, ref),
-                  icon: const Icon(Icons.person_add_alt, size: 16),
-                  label: const Text('사용자 추가'),
+                  icon: Icon(Icons.person_add_alt, size: 16),
+                  label: Text('사용자 추가'),
                   style: TextButton.styleFrom(
                     foregroundColor: AppColors.branch1,
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
+                    textStyle: TextStyle(fontSize: 12, fontWeight: FontWeight.w700),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 10),
+            SizedBox(height: 10),
             allUsers.when(
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Text('오류: $e', style: const TextStyle(color: AppColors.danger)),
+              loading: () => Center(child: CircularProgressIndicator()),
+              error: (e, _) => Text('오류: $e', style: TextStyle(color: AppColors.danger)),
               data: (list) {
                 if (list.isEmpty) {
                   return _emptyBox('등록된 사용자가 없습니다');
@@ -221,7 +221,7 @@ class AdminSettingsPage extends ConsumerWidget {
         borderRadius: BorderRadius.circular(12),
       ),
       child: Center(
-        child: Text(text, style: const TextStyle(color: AppColors.muted, fontWeight: FontWeight.w600, fontSize: 13)),
+        child: Text(text, style: TextStyle(color: AppColors.muted, fontWeight: FontWeight.w600, fontSize: 13)),
       ),
     );
   }
@@ -237,7 +237,7 @@ class AdminSettingsPage extends ConsumerWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          title: const Row(
+          title: Row(
             children: [
               Icon(Icons.campaign_outlined, color: AppColors.warn, size: 22),
               SizedBox(width: 8),
@@ -254,25 +254,25 @@ class AdminSettingsPage extends ConsumerWidget {
                   TextField(
                     controller: titleCtrl,
                     maxLength: 50,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: '제목',
                       hintText: '예: 5월 청소 일정 안내',
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   TextField(
                     controller: bodyCtrl,
                     maxLines: 5,
                     maxLength: 500,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       labelText: '내용',
                       hintText: '공지 내용을 입력하세요...',
                       alignLabelWithHint: true,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  const Text('수신 대상', style: TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w700)),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 4),
+                  Text('수신 대상', style: TextStyle(fontSize: 11, color: context.brand.muted, fontWeight: FontWeight.w700)),
+                  SizedBox(height: 6),
                   // 대상 선택 칩
                   Wrap(
                     spacing: 6,
@@ -289,7 +289,7 @@ class AdminSettingsPage extends ConsumerWidget {
           actions: [
             TextButton(
               onPressed: loading ? null : () => Navigator.pop(ctx),
-              child: const Text('취소'),
+              child: Text('취소'),
             ),
             FilledButton.icon(
               onPressed: loading
@@ -328,9 +328,9 @@ class AdminSettingsPage extends ConsumerWidget {
                       }
                     },
               icon: loading
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Icon(Icons.send, size: 16),
-              label: const Text('전송'),
+                  ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Icon(Icons.send, size: 16),
+              label: Text('전송'),
               style: FilledButton.styleFrom(backgroundColor: AppColors.warn),
             ),
           ],
@@ -376,7 +376,7 @@ class AdminSettingsPage extends ConsumerWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          title: const Text('사용자 추가'),
+          title: Text('사용자 추가'),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -386,14 +386,14 @@ class AdminSettingsPage extends ConsumerWidget {
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.panel2,
+                    color: context.brand.panel2,
                     borderRadius: BorderRadius.circular(8),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('초기 일괄 추가 (PIN=000000)', style: TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 6),
+                      Text('초기 일괄 추가 (PIN=000000)', style: TextStyle(fontSize: 11, color: context.brand.muted, fontWeight: FontWeight.w700)),
+                      SizedBox(height: 6),
                       FilledButton(
                         onPressed: loading
                             ? null
@@ -404,36 +404,36 @@ class AdminSettingsPage extends ConsumerWidget {
                               },
                         style: FilledButton.styleFrom(
                           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                          textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                          textStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                           minimumSize: const Size(0, 28),
                         ),
-                        child: const Text('초기 6명 추가'),
+                        child: Text('초기 6명 추가'),
                       ),
-                      const SizedBox(height: 4),
-                      const Text(
+                      SizedBox(height: 4),
+                      Text(
                         '박제인(매니저), 송현주(실장), 에블린·김소영·리첼·조은희(청소원)',
-                        style: TextStyle(fontSize: 10, color: AppColors.dim),
+                        style: TextStyle(fontSize: 10, color: context.brand.dim),
                       ),
                     ],
                   ),
                 ),
-                const SizedBox(height: 14),
-                const Text('또는 개별 추가', style: TextStyle(fontSize: 11, color: AppColors.muted, fontWeight: FontWeight.w700)),
-                const SizedBox(height: 8),
+                SizedBox(height: 14),
+                Text('또는 개별 추가', style: TextStyle(fontSize: 11, color: context.brand.muted, fontWeight: FontWeight.w700)),
+                SizedBox(height: 8),
                 TextField(
                   controller: nameCtrl,
-                  decoration: const InputDecoration(labelText: '이름', hintText: '예: 박제인'),
+                  decoration: InputDecoration(labelText: '이름', hintText: '예: 박제인'),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 TextField(
                   controller: pinCtrl,
-                  decoration: const InputDecoration(labelText: '초기 PIN'),
+                  decoration: InputDecoration(labelText: '초기 PIN'),
                   keyboardType: TextInputType.number,
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 DropdownButtonFormField<String>(
                   value: role,
-                  decoration: const InputDecoration(labelText: '역할'),
+                  decoration: InputDecoration(labelText: '역할'),
                   items: const [
                     DropdownMenuItem(value: 'cleaner', child: Text('청소원')),
                     DropdownMenuItem(value: 'chief', child: Text('실장')),
@@ -445,7 +445,7 @@ class AdminSettingsPage extends ConsumerWidget {
             ),
           ),
           actions: [
-            TextButton(onPressed: loading ? null : () => Navigator.pop(ctx), child: const Text('취소')),
+            TextButton(onPressed: loading ? null : () => Navigator.pop(ctx), child: Text('취소')),
             FilledButton(
               onPressed: loading
                   ? null
@@ -470,8 +470,8 @@ class AdminSettingsPage extends ConsumerWidget {
                       }
                     },
               child: loading
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('추가'),
+                  ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text('추가'),
             ),
           ],
         ),
@@ -533,13 +533,13 @@ class _AppVersionSection extends ConsumerWidget {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: AppColors.panel,
+        color: context.brand.panel,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.brand.line),
       ),
       child: asyncVer.when(
-        loading: () => const SizedBox(height: 60, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
-        error: (e, _) => Text('불러오기 실패: $e', style: const TextStyle(color: AppColors.danger)),
+        loading: () => SizedBox(height: 60, child: Center(child: CircularProgressIndicator(strokeWidth: 2))),
+        error: (e, _) => Text('불러오기 실패: $e', style: TextStyle(color: AppColors.danger)),
         data: (v) {
           final hasVersion = v != null && v.latest.isNotEmpty;
           return Column(
@@ -554,23 +554,23 @@ class _AppVersionSection extends ConsumerWidget {
                       color: AppColors.branch1.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: const Icon(Icons.system_update, color: AppColors.branch1, size: 20),
+                    child: Icon(Icons.system_update, color: AppColors.branch1, size: 20),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
                           hasVersion ? '최신 버전: ${v.latest}  (code ${v.latestCode})' : '등록된 버전 없음',
-                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
+                          style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14),
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(
                           hasVersion && v.mandatory ? '필수 업데이트 ON' : '선택적 업데이트',
                           style: TextStyle(
                             fontSize: 11,
-                            color: hasVersion && v.mandatory ? AppColors.danger : AppColors.muted,
+                            color: hasVersion && v.mandatory ? AppColors.danger : context.brand.muted,
                             fontWeight: FontWeight.w600,
                           ),
                         ),
@@ -580,35 +580,35 @@ class _AppVersionSection extends ConsumerWidget {
                 ],
               ),
               if (hasVersion && v.releaseNotes.isNotEmpty) ...[
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 Container(
                   width: double.infinity,
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.bg,
+                    color: context.brand.bg,
                     borderRadius: BorderRadius.circular(8),
                   ),
-                  child: Text(v.releaseNotes, style: const TextStyle(fontSize: 12, color: AppColors.text)),
+                  child: Text(v.releaseNotes, style: TextStyle(fontSize: 12, color: context.brand.text)),
                 ),
               ],
-              const SizedBox(height: 12),
+              SizedBox(height: 12),
               Row(
                 children: [
                   Expanded(
                     child: FilledButton.icon(
                       onPressed: () => _showVersionDialog(context, ref, v),
-                      icon: const Icon(Icons.upload, size: 16),
-                      label: const Text('새 버전 등록'),
+                      icon: Icon(Icons.upload, size: 16),
+                      label: Text('새 버전 등록'),
                     ),
                   ),
                   if (hasVersion) ...[
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     OutlinedButton.icon(
                       onPressed: () => _confirmUnregister(context, ref),
-                      icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.danger),
-                      label: const Text('등록 취소', style: TextStyle(color: AppColors.danger)),
+                      icon: Icon(Icons.delete_outline, size: 16, color: AppColors.danger),
+                      label: Text('등록 취소', style: TextStyle(color: AppColors.danger)),
                       style: OutlinedButton.styleFrom(
-                        side: const BorderSide(color: AppColors.danger),
+                        side: BorderSide(color: AppColors.danger),
                       ),
                     ),
                   ],
@@ -625,19 +625,19 @@ class _AppVersionSection extends ConsumerWidget {
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('버전 등록 취소'),
-        content: const Text(
+        title: Text('버전 등록 취소'),
+        content: Text(
           'Firestore 의 config/appVersion 문서를 삭제합니다.\n'
           '이후 어떤 기기에서도 업데이트 다이얼로그가 더 이상 표시되지 않습니다.\n\n'
           '계속할까요?',
           style: TextStyle(fontSize: 13),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text('취소')),
           FilledButton(
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('삭제'),
+            child: Text('삭제'),
           ),
         ],
       ),
@@ -719,7 +719,7 @@ class _AppVersionSection extends ConsumerWidget {
         }
 
         return AlertDialog(
-          title: const Text('새 버전 등록'),
+          title: Text('새 버전 등록'),
           content: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -727,39 +727,39 @@ class _AppVersionSection extends ConsumerWidget {
               children: [
                 TextField(
                   controller: versionCtrl,
-                  decoration: const InputDecoration(labelText: '버전 (예: 0.2.1)', isDense: true),
+                  decoration: InputDecoration(labelText: '버전 (예: 0.2.1)', isDense: true),
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 TextField(
                   controller: codeCtrl,
-                  decoration: const InputDecoration(labelText: '버전 코드 (정수, 비교 기준)', isDense: true),
+                  decoration: InputDecoration(labelText: '버전 코드 (정수, 비교 기준)', isDense: true),
                   keyboardType: TextInputType.number,
                   inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 // APK 업로드 영역
                 Container(
                   padding: const EdgeInsets.all(10),
                   decoration: BoxDecoration(
-                    color: AppColors.bg,
+                    color: context.brand.bg,
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppColors.line),
+                    border: Border.all(color: context.brand.line),
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       Row(
                         children: [
-                          const Icon(Icons.android, size: 18, color: AppColors.branch1),
-                          const SizedBox(width: 6),
-                          const Expanded(
+                          Icon(Icons.android, size: 18, color: AppColors.branch1),
+                          SizedBox(width: 6),
+                          Expanded(
                             child: Text('APK 파일',
-                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.muted)),
+                                style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: context.brand.muted)),
                           ),
                           TextButton.icon(
                             onPressed: uploading ? null : pickAndUpload,
-                            icon: const Icon(Icons.upload_file, size: 14),
-                            label: const Text('파일 선택', style: TextStyle(fontSize: 12)),
+                            icon: Icon(Icons.upload_file, size: 14),
+                            label: Text('파일 선택', style: TextStyle(fontSize: 12)),
                             style: TextButton.styleFrom(
                               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                               minimumSize: Size.zero,
@@ -769,28 +769,28 @@ class _AppVersionSection extends ConsumerWidget {
                         ],
                       ),
                       if (uploading) ...[
-                        const SizedBox(height: 6),
+                        SizedBox(height: 6),
                         LinearProgressIndicator(value: uploadProgress > 0 ? uploadProgress : null),
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4),
                         Text(
                           uploadFileName == null
                               ? '${(uploadProgress * 100).toStringAsFixed(0)}%'
                               : '$uploadFileName  ·  ${(uploadProgress * 100).toStringAsFixed(0)}%',
-                          style: const TextStyle(fontSize: 11, color: AppColors.muted),
+                          style: TextStyle(fontSize: 11, color: context.brand.muted),
                         ),
                       ],
                       if (uploadError != null) ...[
-                        const SizedBox(height: 4),
+                        SizedBox(height: 4),
                         Text(uploadError!,
-                            style: const TextStyle(fontSize: 11, color: AppColors.danger)),
+                            style: TextStyle(fontSize: 11, color: AppColors.danger)),
                       ],
                     ],
                   ),
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 TextField(
                   controller: urlCtrl,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'APK 다운로드 URL',
                     isDense: true,
                     hintText: 'https://… (파일 선택하면 자동 채워짐)',
@@ -799,19 +799,19 @@ class _AppVersionSection extends ConsumerWidget {
                   maxLines: 2,
                   minLines: 1,
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 TextField(
                   controller: notesCtrl,
-                  decoration: const InputDecoration(labelText: '변경 내용 (선택)', isDense: true),
+                  decoration: InputDecoration(labelText: '변경 내용 (선택)', isDense: true),
                   maxLines: 3,
                   minLines: 2,
                 ),
-                const SizedBox(height: 10),
+                SizedBox(height: 10),
                 SwitchListTile.adaptive(
                   value: mandatory,
                   onChanged: (v) => setLocal(() => mandatory = v),
-                  title: const Text('필수 업데이트', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
-                  subtitle: const Text('켜면 다이얼로그 닫기 불가', style: TextStyle(fontSize: 11)),
+                  title: Text('필수 업데이트', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700)),
+                  subtitle: Text('켜면 다이얼로그 닫기 불가', style: TextStyle(fontSize: 11)),
                   contentPadding: EdgeInsets.zero,
                   dense: true,
                 ),
@@ -825,23 +825,23 @@ class _AppVersionSection extends ConsumerWidget {
                 if (hasExisting)
                   TextButton.icon(
                     onPressed: uploading ? null : () => Navigator.of(ctx).pop('delete'),
-                    icon: const Icon(Icons.delete_outline, size: 16, color: AppColors.danger),
-                    label: const Text('현재 등록 삭제', style: TextStyle(color: AppColors.danger, fontSize: 12)),
+                    icon: Icon(Icons.delete_outline, size: 16, color: AppColors.danger),
+                    label: Text('현재 등록 삭제', style: TextStyle(color: AppColors.danger, fontSize: 12)),
                     style: TextButton.styleFrom(
                       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
                       minimumSize: Size.zero,
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
                   ),
-                const Spacer(),
+                Spacer(),
                 TextButton(
                   onPressed: uploading ? null : () => Navigator.of(ctx).pop(null),
-                  child: const Text('취소'),
+                  child: Text('취소'),
                 ),
-                const SizedBox(width: 4),
+                SizedBox(width: 4),
                 FilledButton(
                   onPressed: uploading ? null : () => Navigator.of(ctx).pop('save'),
-                  child: const Text('등록'),
+                  child: Text('등록'),
                 ),
               ],
             ),
@@ -900,17 +900,17 @@ class _BranchSyncSection extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final branchesAsync = ref.watch(branchesProvider);
     return branchesAsync.when(
-      loading: () => const Padding(
+      loading: () => Padding(
         padding: EdgeInsets.all(12),
         child: Center(child: CircularProgressIndicator()),
       ),
-      error: (e, _) => Text('오류: $e', style: const TextStyle(color: AppColors.danger, fontSize: 12)),
+      error: (e, _) => Text('오류: $e', style: TextStyle(color: AppColors.danger, fontSize: 12)),
       data: (branches) {
         if (branches.isEmpty) {
           return Container(
             padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(color: AppColors.panel2, borderRadius: BorderRadius.circular(10)),
-            child: const Center(child: Text('등록된 호점이 없습니다', style: TextStyle(color: AppColors.muted, fontSize: 12))),
+            decoration: BoxDecoration(color: context.brand.panel2, borderRadius: BorderRadius.circular(10)),
+            child: Center(child: Text('등록된 호점이 없습니다', style: TextStyle(color: context.brand.muted, fontSize: 12))),
           );
         }
         return Column(children: branches.map((b) => _BranchSyncRow(branch: b)).toList());
@@ -937,9 +937,9 @@ class _BranchSyncRow extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.panel,
+        color: context.brand.panel,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.brand.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -947,9 +947,9 @@ class _BranchSyncRow extends ConsumerWidget {
           Row(
             children: [
               Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-              const SizedBox(width: 8),
-              Text(branch.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-              const Spacer(),
+              SizedBox(width: 8),
+              Text(branch.name, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+              Spacer(),
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
@@ -963,38 +963,38 @@ class _BranchSyncRow extends ConsumerWidget {
               ),
             ],
           ),
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           Text(
             masked,
-            style: const TextStyle(color: AppColors.muted, fontSize: 11),
+            style: TextStyle(color: context.brand.muted, fontSize: 11),
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Row(
             children: [
               OutlinedButton.icon(
                 onPressed: () => _editDialog(context, ref),
-                icon: const Icon(Icons.link, size: 14),
-                label: const Text('iCal URL 편집'),
+                icon: Icon(Icons.link, size: 14),
+                label: Text('iCal URL 편집'),
                 style: OutlinedButton.styleFrom(
                   foregroundColor: AppColors.branch1,
-                  side: const BorderSide(color: AppColors.branch1, width: 1),
+                  side: BorderSide(color: AppColors.branch1, width: 1),
                   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                  textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                  textStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                   minimumSize: const Size(0, 32),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               TextButton.icon(
                 onPressed: hasUrl ? () => _syncNow(context, ref) : null,
-                icon: const Icon(Icons.sync, size: 14),
-                label: const Text('지금 동기화'),
+                icon: Icon(Icons.sync, size: 14),
+                label: Text('지금 동기화'),
                 style: TextButton.styleFrom(
-                  foregroundColor: AppColors.muted,
+                  foregroundColor: context.brand.muted,
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                  textStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                   minimumSize: const Size(0, 32),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
@@ -1018,17 +1018,17 @@ class _BranchSyncRow extends ConsumerWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
+              Text(
                 'Google Calendar의 "iCal 형식의 비공개 주소"(…/basic.ics)를 붙여넣으세요.',
-                style: TextStyle(fontSize: 12, color: AppColors.muted),
+                style: TextStyle(fontSize: 12, color: context.brand.muted),
               ),
-              const SizedBox(height: 10),
+              SizedBox(height: 10),
               TextField(
                 controller: ctrl,
                 minLines: 2,
                 maxLines: 4,
                 keyboardType: TextInputType.url,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'https://calendar.google.com/calendar/ical/.../basic.ics',
                   isDense: true,
                 ),
@@ -1037,8 +1037,8 @@ class _BranchSyncRow extends ConsumerWidget {
           ),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
-          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('저장')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('취소')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: Text('저장')),
         ],
       ),
     );
@@ -1091,8 +1091,8 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Text(
       title,
-      style: const TextStyle(
-        color: AppColors.muted,
+      style: TextStyle(
+        color: context.brand.muted,
         fontWeight: FontWeight.w700,
         fontSize: 12,
         letterSpacing: 0.5,
@@ -1119,7 +1119,7 @@ class _SentNoticesSectionState extends ConsumerState<_SentNoticesSection> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Material(
-          color: AppColors.panel,
+          color: context.brand.panel,
           borderRadius: BorderRadius.circular(12),
           child: InkWell(
             onTap: () => setState(() => _expanded = !_expanded),
@@ -1128,29 +1128,29 @@ class _SentNoticesSectionState extends ConsumerState<_SentNoticesSection> {
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
               decoration: BoxDecoration(
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.line),
+                border: Border.all(color: context.brand.line),
               ),
               child: Row(
                 children: [
-                  const Icon(Icons.history, size: 18, color: AppColors.muted),
-                  const SizedBox(width: 8),
-                  const Text('보낸 공지', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                  const SizedBox(width: 6),
+                  Icon(Icons.history, size: 18, color: context.brand.muted),
+                  SizedBox(width: 8),
+                  Text('보낸 공지', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  SizedBox(width: 6),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
                     decoration: BoxDecoration(
-                      color: AppColors.muted.withOpacity(0.12),
+                      color: context.brand.muted.withOpacity(0.12),
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Text(
                       '${list.length}',
-                      style: const TextStyle(color: AppColors.muted, fontSize: 10, fontWeight: FontWeight.w700),
+                      style: TextStyle(color: context.brand.muted, fontSize: 10, fontWeight: FontWeight.w700),
                     ),
                   ),
-                  const Spacer(),
+                  Spacer(),
                   Icon(
                     _expanded ? Icons.expand_less : Icons.expand_more,
-                    color: AppColors.muted,
+                    color: context.brand.muted,
                   ),
                 ],
               ),
@@ -1158,26 +1158,26 @@ class _SentNoticesSectionState extends ConsumerState<_SentNoticesSection> {
           ),
         ),
         if (_expanded) ...[
-          const SizedBox(height: 6),
+          SizedBox(height: 6),
           sentAsync.when(
-            loading: () => const Padding(
+            loading: () => Padding(
               padding: EdgeInsets.all(12),
               child: Center(child: CircularProgressIndicator()),
             ),
             error: (e, _) => Padding(
               padding: const EdgeInsets.all(12),
-              child: Text('오류: $e', style: const TextStyle(color: AppColors.danger, fontSize: 12)),
+              child: Text('오류: $e', style: TextStyle(color: AppColors.danger, fontSize: 12)),
             ),
             data: (l) {
               if (l.isEmpty) {
                 return Container(
                   padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
-                    color: AppColors.panel2,
+                    color: context.brand.panel2,
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Center(
-                    child: Text('아직 보낸 공지가 없습니다', style: TextStyle(color: AppColors.muted, fontSize: 12)),
+                  child: Center(
+                    child: Text('아직 보낸 공지가 없습니다', style: TextStyle(color: context.brand.muted, fontSize: 12)),
                   ),
                 );
               }
@@ -1202,9 +1202,9 @@ class _SentNoticeCard extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.panel,
+        color: context.brand.panel,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.brand.line),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -1212,59 +1212,59 @@ class _SentNoticeCard extends ConsumerWidget {
           Row(
             children: [
               Expanded(
-                child: Text(notice.title, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                child: Text(notice.title, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
               ),
               Text(
                 DateFormat('M/d HH:mm', 'ko').format(notice.createdAt),
-                style: const TextStyle(color: AppColors.dim, fontSize: 10),
+                style: TextStyle(color: context.brand.dim, fontSize: 10),
               ),
             ],
           ),
-          const SizedBox(height: 4),
+          SizedBox(height: 4),
           Text(
             notice.body,
-            style: const TextStyle(color: AppColors.muted, fontSize: 12, height: 1.4),
+            style: TextStyle(color: context.brand.muted, fontSize: 12, height: 1.4),
             maxLines: 3,
             overflow: TextOverflow.ellipsis,
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Row(
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                 decoration: BoxDecoration(
-                  color: AppColors.muted.withOpacity(0.1),
+                  color: context.brand.muted.withOpacity(0.1),
                   borderRadius: BorderRadius.circular(999),
                 ),
                 child: Text(
                   '읽음 ${notice.readByUids.length}',
-                  style: const TextStyle(color: AppColors.muted, fontSize: 10, fontWeight: FontWeight.w600),
+                  style: TextStyle(color: context.brand.muted, fontSize: 10, fontWeight: FontWeight.w600),
                 ),
               ),
-              const Spacer(),
+              Spacer(),
               TextButton.icon(
                 onPressed: () => _editNotice(context, ref),
-                icon: const Icon(Icons.edit_outlined, size: 14),
-                label: const Text('수정'),
+                icon: Icon(Icons.edit_outlined, size: 14),
+                label: Text('수정'),
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.branch1,
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                  textStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                 ),
               ),
-              const SizedBox(width: 4),
+              SizedBox(width: 4),
               TextButton.icon(
                 onPressed: () => _deleteNotice(context, ref),
-                icon: const Icon(Icons.delete_outline, size: 14),
-                label: const Text('삭제'),
+                icon: Icon(Icons.delete_outline, size: 14),
+                label: Text('삭제'),
                 style: TextButton.styleFrom(
                   foregroundColor: AppColors.danger,
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   minimumSize: Size.zero,
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+                  textStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
                 ),
               ),
             ],
@@ -1283,27 +1283,27 @@ class _SentNoticeCard extends ConsumerWidget {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          title: const Text('공지 수정'),
+          title: Text('공지 수정'),
           content: SizedBox(
             width: 360,
             child: SingleChildScrollView(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextField(controller: titleCtrl, maxLength: 50, decoration: const InputDecoration(labelText: '제목')),
-                  const SizedBox(height: 4),
+                  TextField(controller: titleCtrl, maxLength: 50, decoration: InputDecoration(labelText: '제목')),
+                  SizedBox(height: 4),
                   TextField(
                     controller: bodyCtrl,
                     maxLines: 5,
                     maxLength: 500,
-                    decoration: const InputDecoration(labelText: '내용', alignLabelWithHint: true),
+                    decoration: InputDecoration(labelText: '내용', alignLabelWithHint: true),
                   ),
                 ],
               ),
             ),
           ),
           actions: [
-            TextButton(onPressed: loading ? null : () => Navigator.pop(ctx), child: const Text('취소')),
+            TextButton(onPressed: loading ? null : () => Navigator.pop(ctx), child: Text('취소')),
             FilledButton(
               onPressed: loading
                   ? null
@@ -1329,8 +1329,8 @@ class _SentNoticeCard extends ConsumerWidget {
                       }
                     },
               child: loading
-                  ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                  : const Text('저장'),
+                  ? SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                  : Text('저장'),
             ),
           ],
         ),
@@ -1342,14 +1342,14 @@ class _SentNoticeCard extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('공지 삭제'),
+        title: Text('공지 삭제'),
         content: Text('"${notice.title}" 공지를 삭제하시겠습니까?\n수신자의 알림 목록에서도 사라집니다.'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('취소')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            child: const Text('삭제'),
+            child: Text('삭제'),
           ),
         ],
       ),
@@ -1392,9 +1392,9 @@ class _UserRow extends ConsumerWidget {
       margin: const EdgeInsets.only(bottom: 6),
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
-        color: AppColors.panel,
+        color: context.brand.panel,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: AppColors.line),
+        border: Border.all(color: context.brand.line),
       ),
       child: Row(
         children: [
@@ -1405,17 +1405,17 @@ class _UserRow extends ConsumerWidget {
             child: Center(
               child: Text(
                 user.name.isNotEmpty ? user.name[0] : '?',
-                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
+                style: TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 14),
               ),
             ),
           ),
-          const SizedBox(width: 10),
+          SizedBox(width: 10),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(user.name, style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
-                const SizedBox(height: 2),
+                Text(user.name, style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                SizedBox(height: 2),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
                   decoration: BoxDecoration(
@@ -1433,23 +1433,23 @@ class _UserRow extends ConsumerWidget {
           // PIN 초기화 버튼
           OutlinedButton.icon(
             onPressed: () => _showResetPinDialog(context, ref),
-            icon: const Icon(Icons.lock_reset, size: 14),
-            label: const Text('PIN 초기화'),
+            icon: Icon(Icons.lock_reset, size: 14),
+            label: Text('PIN 초기화'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.warn,
-              side: const BorderSide(color: AppColors.warn, width: 1),
+              side: BorderSide(color: AppColors.warn, width: 1),
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              textStyle: const TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
+              textStyle: TextStyle(fontSize: 11, fontWeight: FontWeight.w700),
               minimumSize: const Size(0, 32),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
           ),
           // 삭제 버튼 (본인 계정은 숨김)
           if (ref.watch(currentUserProvider).valueOrNull?.uid != user.uid) ...[
-            const SizedBox(width: 4),
+            SizedBox(width: 4),
             IconButton(
               onPressed: () => _showDeleteUserDialog(context, ref),
-              icon: const Icon(Icons.delete_outline, size: 18),
+              icon: Icon(Icons.delete_outline, size: 18),
               color: AppColors.danger,
               tooltip: '사용자 삭제',
               visualDensity: VisualDensity.compact,
@@ -1457,12 +1457,12 @@ class _UserRow extends ConsumerWidget {
               padding: EdgeInsets.zero,
             ),
           ],
-          const SizedBox(width: 8),
+          SizedBox(width: 8),
           Container(
             width: 8,
             height: 8,
             decoration: BoxDecoration(
-              color: user.active ? AppColors.ok : AppColors.dim,
+              color: user.active ? AppColors.ok : context.brand.dim,
               shape: BoxShape.circle,
             ),
           ),
@@ -1475,17 +1475,17 @@ class _UserRow extends ConsumerWidget {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('사용자 삭제'),
+        title: Text('사용자 삭제'),
         content: Text(
           '${user.name} 님을 완전히 삭제하시겠습니까?\n'
           '계정과 모든 정보가 영구 삭제되며 복구할 수 없습니다.',
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('취소')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, true),
             style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            child: const Text('삭제'),
+            child: Text('삭제'),
           ),
         ],
       ),
@@ -1515,24 +1515,24 @@ class _UserRow extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('새 PIN을 입력하세요 (4~8자리).\n사용자가 다음 로그인 시 변경하도록 안내해주세요.',
-                style: TextStyle(fontSize: 12, color: AppColors.muted)),
-            const SizedBox(height: 10),
+            Text('새 PIN을 입력하세요 (4~8자리).\n사용자가 다음 로그인 시 변경하도록 안내해주세요.',
+                style: TextStyle(fontSize: 12, color: context.brand.muted)),
+            SizedBox(height: 10),
             TextField(
               controller: pinCtrl,
               keyboardType: TextInputType.number,
               maxLength: 8,
               inputFormatters: [FilteringTextInputFormatter.digitsOnly],
-              decoration: const InputDecoration(labelText: '새 PIN'),
+              decoration: InputDecoration(labelText: '새 PIN'),
             ),
           ],
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('취소')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('취소')),
           FilledButton(
             onPressed: () => Navigator.pop(ctx, pinCtrl.text.trim()),
             style: FilledButton.styleFrom(backgroundColor: AppColors.warn),
-            child: const Text('초기화'),
+            child: Text('초기화'),
           ),
         ],
       ),

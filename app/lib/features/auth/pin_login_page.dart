@@ -109,7 +109,7 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
               fontWeight: FontWeight.w700,
               color: selected
                   ? (label == '관리자' ? AppColors.danger : AppColors.branch1)
-                  : AppColors.muted,
+                  : context.brand.muted,
             ),
           ),
         ),
@@ -134,7 +134,7 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
     final maxWidth = screenWidth > 420 ? 400.0 : screenWidth;
 
     return Scaffold(
-      backgroundColor: AppColors.bg,
+      backgroundColor: context.brand.bg,
       // 키보드가 올라올 때 화면이 자동으로 조정되도록
       resizeToAvoidBottomInset: true,
       body: SafeArea(
@@ -160,7 +160,7 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                         ),
                       ],
                     ),
-                    child: const Center(
+                    child: Center(
                       child: Text(
                         'SOLEN\nSTAY',
                         textAlign: TextAlign.center,
@@ -175,27 +175,27 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 14),
+                  SizedBox(height: 14),
                   Text(
                     'SolenStay',
-                    style: const TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5),
+                    style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800, letterSpacing: -0.5),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     _adminMode ? '관리자 로그인' : '청소 관리 시스템',
                     style: TextStyle(
-                      color: _adminMode ? AppColors.danger : AppColors.muted,
+                      color: _adminMode ? AppColors.danger : context.brand.muted,
                       fontSize: 13,
                       fontWeight: _adminMode ? FontWeight.w700 : FontWeight.w500,
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  SizedBox(height: 18),
 
                   // 모드 토글 (청소원 / 관리자)
                   Container(
                     padding: const EdgeInsets.all(4),
                     decoration: BoxDecoration(
-                      color: AppColors.panel2,
+                      color: context.brand.panel2,
                       borderRadius: BorderRadius.circular(999),
                     ),
                     child: Row(
@@ -235,14 +235,14 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 18),
+                  SizedBox(height: 18),
 
                   // 이름 카드 (캐시된 future 사용 — 매 빌드 재호출 방지)
                   FutureBuilder<List<String>>(
                     future: _candidatesFuture,
                     builder: (context, snap) {
                         if (snap.connectionState != ConnectionState.done) {
-                          return const Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator());
+                          return Padding(padding: EdgeInsets.all(30), child: CircularProgressIndicator());
                         }
                         if (snap.hasError) {
                           return Container(
@@ -251,7 +251,7 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                               color: AppColors.danger.withOpacity(0.08),
                               borderRadius: BorderRadius.circular(12),
                             ),
-                            child: const Row(
+                            child: Row(
                               children: [
                                 Icon(Icons.error_outline, color: AppColors.danger, size: 18),
                                 SizedBox(width: 8),
@@ -267,19 +267,19 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                         }
                         final names = snap.data ?? const <String>[];
                         if (names.isEmpty) {
-                          return const Padding(
+                          return Padding(
                             padding: EdgeInsets.all(20),
-                            child: Text('등록된 사용자가 없습니다.', style: TextStyle(color: AppColors.muted, fontSize: 13)),
+                            child: Text('등록된 사용자가 없습니다.', style: TextStyle(color: context.brand.muted, fontSize: 13)),
                           );
                         }
                         return Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            const Text(
+                            Text(
                               '이름을 선택하세요',
-                              style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w600),
+                              style: TextStyle(color: context.brand.muted, fontSize: 12, fontWeight: FontWeight.w600),
                             ),
-                            const SizedBox(height: 8),
+                            SizedBox(height: 8),
                             GridView.builder(
                               shrinkWrap: true,
                               physics: const NeverScrollableScrollPhysics(),
@@ -294,7 +294,7 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                                 final n = names[i];
                                 final selected = _selectedName == n;
                                 return Material(
-                                  color: selected ? AppColors.branch1.withOpacity(0.08) : AppColors.panel,
+                                  color: selected ? AppColors.branch1.withOpacity(0.08) : context.brand.panel,
                                   borderRadius: BorderRadius.circular(12),
                                   child: InkWell(
                                     onTap: () => _onSelectName(n),
@@ -303,7 +303,7 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                                       decoration: BoxDecoration(
                                         borderRadius: BorderRadius.circular(12),
                                         border: Border.all(
-                                          color: selected ? AppColors.branch1 : AppColors.line,
+                                          color: selected ? AppColors.branch1 : context.brand.line,
                                           width: selected ? 2 : 1,
                                         ),
                                       ),
@@ -312,19 +312,19 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                                         children: [
                                           CircleAvatar(
                                             radius: 15,
-                                            backgroundColor: selected ? AppColors.branch1 : AppColors.dim,
+                                            backgroundColor: selected ? AppColors.branch1 : context.brand.dim,
                                             child: Text(
                                               n.isNotEmpty ? n[0] : '?',
-                                              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
+                                              style: TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w700),
                                             ),
                                           ),
-                                          const SizedBox(width: 8),
+                                          SizedBox(width: 8),
                                           Text(
                                             n,
                                             style: TextStyle(
                                               fontSize: 14,
                                               fontWeight: selected ? FontWeight.w700 : FontWeight.w500,
-                                              color: selected ? AppColors.branch1 : AppColors.text,
+                                              color: selected ? AppColors.branch1 : context.brand.text,
                                             ),
                                           ),
                                         ],
@@ -339,14 +339,14 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                       },
                     ),
 
-                  const SizedBox(height: 24),
+                  SizedBox(height: 24),
 
                   // PIN 라벨
-                  const Text(
+                  Text(
                     'PIN 입력',
-                    style: TextStyle(color: AppColors.muted, fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(color: context.brand.muted, fontSize: 12, fontWeight: FontWeight.w600),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
 
                   // PIN dots (시각적 표시)
                   Row(
@@ -362,14 +362,14 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                           color: filled ? AppColors.branch1 : Colors.transparent,
                           shape: BoxShape.circle,
                           border: Border.all(
-                            color: filled ? AppColors.branch1 : AppColors.line,
+                            color: filled ? AppColors.branch1 : context.brand.line,
                             width: 2,
                           ),
                         ),
                       );
                     }),
                   ),
-                  const SizedBox(height: 18),
+                  SizedBox(height: 18),
 
                   // PIN 입력 TextField (네이티브 키패드 호출)
                   TextField(
@@ -387,16 +387,16 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                     enableSuggestions: false,
                     autocorrect: false,
                     textAlign: TextAlign.center,
-                    style: const TextStyle(
+                    style: TextStyle(
                       fontSize: 24,
                       fontWeight: FontWeight.w700,
                       letterSpacing: 16,
-                      color: AppColors.text,
+                      color: context.brand.text,
                     ),
                     decoration: InputDecoration(
                       hintText: '숫자 6자리',
                       hintStyle: TextStyle(
-                        color: AppColors.dim,
+                        color: context.brand.dim,
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
                         letterSpacing: 0,
@@ -414,7 +414,7 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                     },
                     onSubmitted: (_) => _submit(),
                   ),
-                  const SizedBox(height: 10),
+                  SizedBox(height: 10),
 
                   // 자동 로그인 체크박스 — 이 기기에서 다음 시작 시 PIN 생략
                   InkWell(
@@ -438,14 +438,14 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                               visualDensity: VisualDensity.compact,
                             ),
                           ),
-                          const SizedBox(width: 10),
-                          const Expanded(
+                          SizedBox(width: 10),
+                          Expanded(
                             child: Text(
                               '이 기기에서 자동 로그인',
                               style: TextStyle(
                                 fontSize: 13,
                                 fontWeight: FontWeight.w500,
-                                color: AppColors.text,
+                                color: context.brand.text,
                               ),
                             ),
                           ),
@@ -453,7 +453,7 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 6),
+                  SizedBox(height: 6),
 
                   // 로그인 버튼 (수동 제출용)
                   SizedBox(
@@ -464,18 +464,18 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                         padding: const EdgeInsets.symmetric(vertical: 16),
                       ),
                       child: _loading
-                          ? const SizedBox(
+                          ? SizedBox(
                               width: 20,
                               height: 20,
                               child: CircularProgressIndicator(strokeWidth: 2.5, color: Colors.white),
                             )
-                          : const Text('로그인', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                          : Text('로그인', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                     ),
                   ),
 
                   // 에러 메시지
                   if (_error != null) ...[
-                    const SizedBox(height: 14),
+                    SizedBox(height: 14),
                     Container(
                       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                       decoration: BoxDecoration(
@@ -485,9 +485,9 @@ class _PinLoginPageState extends ConsumerState<PinLoginPage> {
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          const Icon(Icons.error_outline, color: AppColors.danger, size: 16),
-                          const SizedBox(width: 6),
-                          Text(_error!, style: const TextStyle(color: AppColors.danger, fontSize: 13, fontWeight: FontWeight.w500)),
+                          Icon(Icons.error_outline, color: AppColors.danger, size: 16),
+                          SizedBox(width: 6),
+                          Text(_error!, style: TextStyle(color: AppColors.danger, fontSize: 13, fontWeight: FontWeight.w500)),
                         ],
                       ),
                     ),

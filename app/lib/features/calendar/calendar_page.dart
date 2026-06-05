@@ -696,7 +696,7 @@ class _DayCard extends StatelessWidget {
           color: isSelected ? AppColors.branch1.withOpacity(0.06) : context.brand.panel,
           borderRadius: BorderRadius.circular(10),
           border: Border.all(
-            color: (isSelected || isToday) ? AppColors.branch1 : const Color(0xFFEBEBEB),
+            color: (isSelected || isToday) ? AppColors.branch1 : context.brand.line,
             width: (isSelected || isToday) ? 1.2 : 0.8,
           ),
         ),

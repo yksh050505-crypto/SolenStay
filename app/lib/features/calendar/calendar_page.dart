@@ -953,7 +953,14 @@ class _ReservationCard extends ConsumerWidget {
             color: AppColors.ok.withOpacity(0.12),
             borderRadius: BorderRadius.circular(999),
           ),
-          child: Text('✓ 완료', style: TextStyle(color: AppColors.ok, fontSize: 10, fontWeight: FontWeight.w700)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.check, size: 12, color: AppColors.ok),
+              SizedBox(width: 2),
+              Text('완료', style: TextStyle(color: AppColors.ok, fontSize: 10, fontWeight: FontWeight.w700)),
+            ],
+          ),
         );
       } else if (canClaim) {
         rightAction = SizedBox(

@@ -447,9 +447,11 @@ class _CleaningTaskCard extends ConsumerWidget {
   Widget _statusPill(CleaningModel c, bool isMine) {
     String text;
     Color color;
+    bool withCheck = false;
     if (c.isCompleted) {
-      text = '✓ 완료';
+      text = '완료';
       color = AppColors.ok;
+      withCheck = true;
     } else if (c.isUnassigned) {
       text = '?';
       color = const Color(0xFFFACC15);
@@ -469,7 +471,16 @@ class _CleaningTaskCard extends ConsumerWidget {
         color: color.withOpacity(0.12),
         borderRadius: BorderRadius.circular(999),
       ),
-      child: Text(text, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (withCheck) ...[
+            Icon(Icons.check, size: 12, color: color),
+            const SizedBox(width: 2),
+          ],
+          Text(text, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w700)),
+        ],
+      ),
     );
   }
 }
@@ -831,11 +842,30 @@ class _TaskCard extends ConsumerWidget {
   }
 
   Widget _statusPill(CleaningModel c, bool isMine) {
-    if (c.isCompleted) return _pill('✓ 완료', AppColors.ok);
+    if (c.isCompleted) return _pillWithIcon(Icons.check, '완료', AppColors.ok);
     if (c.isUnassigned) return _pill('?', const Color(0xFFFACC15));
     if (isMine) return _pill('내 작업', AppColors.branch1);
     return _pill('진행중', AppColors.muted);
   }
+
+  Widget _pillWithIcon(IconData icon, String text, Color color) => Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.1),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 13, color: color),
+            const SizedBox(width: 2),
+            Text(
+              text,
+              style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w700),
+            ),
+          ],
+        ),
+      );
 
   /// 날짜 라벨 ("오늘", "내일", "M/d")
   String _dateLabel(DateTime d) {

@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -737,11 +738,14 @@ class _TaskCard extends ConsumerWidget {
     // 라이브 매칭 실패 시 완료 청소에 저장된 다음 게스트 스냅샷 사용
     String? nextGuestName = incoming?.guestName;
     int? nextGuestCount = incoming?.guestCount;
-    final DateTime? nextCheckIn = incoming?.checkIn;
+    DateTime? nextCheckIn = incoming?.checkIn;
     if (nextGuestName == null && cleaning.nextGuestSnapshot != null) {
       final s = cleaning.nextGuestSnapshot!;
       nextGuestName = s['guestName'] as String?;
       nextGuestCount = (s['guestCount'] as num?)?.toInt();
+      // 스냅샷에 저장된 다음 게스트 체크인 날짜도 사용 (없을 수 있음)
+      final ci = s['checkIn'];
+      if (ci is Timestamp) nextCheckIn = ci.toDate();
     }
     final bool sameDayArrival = nextCheckIn != null && sameDay(nextCheckIn, cleaning.scheduledDate);
 
@@ -806,7 +810,9 @@ class _TaskCard extends ConsumerWidget {
                           Text(
                             sameDayArrival
                                 ? '신규 입실 게스트 (당일)'
-                                : '다음 입실 ${DateFormat('M/d (E)', 'ko').format(nextCheckIn!)}',
+                                : nextCheckIn != null
+                                    ? '다음 입실 ${DateFormat('M/d (E)', 'ko').format(nextCheckIn)}'
+                                    : '다음 입실 예정',
                             style: TextStyle(fontSize: 10, color: branchColor, fontWeight: FontWeight.w600),
                           ),
                         ] else

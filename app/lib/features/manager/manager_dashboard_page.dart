@@ -7,6 +7,7 @@ import 'package:intl/intl.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/services.dart';
+import 'manager_dashboard_widgets.dart';
 
 /// 전체 사용자 목록 Provider (매니저용)
 final allUsersProvider = StreamProvider<List<UserModel>>((ref) {
@@ -56,11 +57,30 @@ final recentNotesProvider = StreamProvider<List<CleaningModel>>((ref) {
 });
 
 /// ⑦ 매니저 대시보드 (manager/chief 전용) - 목업 디자인 적용
-class ManagerDashboardPage extends ConsumerWidget {
+///
+/// 건수 증가에 견디는 구조:
+///  - 상단 호점 필터 칩으로 모든 섹션을 동시에 좁힘
+///  - 각 섹션은 접기/펼치기(CollapsibleSection) + 카운트 배지
+///  - 리스트는 ShowMoreList로 초기 N개만 표시 후 "더보기"
+///  - "지금 처리할 일"·"진행 중"은 날짜 그룹 헤더(오늘/내일/이후)로 묶음
+class ManagerDashboardPage extends ConsumerStatefulWidget {
   const ManagerDashboardPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ManagerDashboardPage> createState() => _ManagerDashboardPageState();
+}
+
+class _ManagerDashboardPageState extends ConsumerState<ManagerDashboardPage> {
+  /// 선택된 호점 필터(null = 전체)
+  String? _branchFilter;
+
+  List<CleaningModel> _applyFilter(List<CleaningModel> list) {
+    if (_branchFilter == null) return list;
+    return list.where((c) => c.branchId == _branchFilter).toList();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final userAsync = ref.watch(currentUserProvider);
 
     if (userAsync.isLoading) {
@@ -128,7 +148,7 @@ class ManagerDashboardPage extends ConsumerWidget {
             ),
             SizedBox(height: 18),
 
-            // 1) 큰 진행률 카드
+            // 1) 큰 진행률 카드 (필터 무관 — 전체 진행률은 항상 표시)
             todayCleanings.when(
               loading: () => Center(child: Padding(padding: EdgeInsets.all(20), child: CircularProgressIndicator())),
               error: (e, _) => Text('오류: $e'),
@@ -137,95 +157,126 @@ class ManagerDashboardPage extends ConsumerWidget {
                 branches: branches,
               ),
             ),
-            SizedBox(height: 18),
+            SizedBox(height: 14),
 
-            // 1.5) 완료 보고 — 최근 청소 완료 내역 (사진 포함)
-            _SectionHeader(title: '완료 보고'),
-            SizedBox(height: 10),
-            completed.when(
-              loading: () => Center(child: CircularProgressIndicator()),
-              error: (e, _) => Text('오류: $e', style: TextStyle(color: AppColors.danger)),
-              data: (list) {
-                if (list.isEmpty) {
-                  return _emptyBox('아직 완료 보고가 없습니다');
-                }
-                return Column(
-                  children: list.take(10).map((c) => _CompletedReportCard(cleaning: c, branches: branches)).toList(),
-                );
-              },
-            ),
-            SizedBox(height: 18),
+            // 1.3) 호점 필터 칩 — 모든 섹션을 동시에 좁힘
+            if (branches.isNotEmpty) ...[
+              _BranchFilterBar(
+                branches: branches,
+                selected: _branchFilter,
+                onChanged: (id) => setState(() => _branchFilter = id),
+              ),
+              SizedBox(height: 12),
+            ],
 
-            // 2) 지금 처리할 일 (미지정 청소 + 임박)
-            _SectionHeader(title: '지금 처리할 일', danger: true),
-            SizedBox(height: 10),
+            // 2) 지금 처리할 일 (미지정) — 기본 펼침 + 날짜 그룹
             unassigned.when(
-              loading: () => Center(child: CircularProgressIndicator()),
-              error: (e, _) => Text('오류: $e', style: TextStyle(color: AppColors.danger)),
-              data: (list) {
-                final urgent = list.take(5).toList();
-                if (urgent.isEmpty) {
-                  return _emptyBox(
-                    '모든 청소가 배정 완료!',
-                    icon: Icons.check_circle_outline,
-                    color: AppColors.ok,
-                  );
-                }
-                return Column(
-                  children: urgent.map((c) => _UnassignedCard(
-                    cleaning: c,
-                    branches: branches,
-                    onAssign: () => _showAssignDialog(context, ref, c),
-                  )).toList(),
+              loading: () => const _SectionLoading(),
+              error: (e, _) => _sectionError(e),
+              data: (raw) {
+                final list = _applyFilter(raw);
+                return CollapsibleSection(
+                  title: '지금 처리할 일',
+                  danger: true,
+                  count: list.length,
+                  initiallyExpanded: list.isNotEmpty,
+                  child: list.isEmpty
+                      ? _emptyBox(
+                          '모든 청소가 배정 완료!',
+                          icon: Icons.check_circle_outline,
+                          color: AppColors.ok,
+                        )
+                      : _DateGroupedList(
+                          items: list,
+                          dateOf: (c) => c.scheduledDate,
+                          itemBuilder: (c) => _UnassignedCard(
+                            cleaning: c,
+                            branches: branches,
+                            onAssign: () => _showAssignDialog(context, ref, c),
+                          ),
+                        ),
                 );
               },
             ),
-            SizedBox(height: 18),
 
-            // 3) 진행 중 청소 (배정됐지만 미완료)
+            // 3) 진행 중 청소 (배정됐지만 미완료) — 기본 접힘
             todayCleanings.when(
               loading: () => const SizedBox.shrink(),
               error: (_, __) => const SizedBox.shrink(),
-              data: (list) {
-                final inProgress = list.where((c) => !c.isCompleted && !c.isUnassigned).toList();
-                if (inProgress.isEmpty) return const SizedBox.shrink();
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    const _SectionHeader(title: '진행 중'),
-                    SizedBox(height: 10),
-                    ...inProgress.map((c) => _InProgressCard(cleaning: c, branches: branches)),
-                    SizedBox(height: 18),
-                  ],
+              data: (raw) {
+                final inProgress = _applyFilter(
+                  raw.where((c) => !c.isCompleted && !c.isUnassigned).toList(),
+                );
+                return CollapsibleSection(
+                  title: '진행 중',
+                  leadingIcon: Icons.cleaning_services_outlined,
+                  count: inProgress.length,
+                  initiallyExpanded: false,
+                  child: inProgress.isEmpty
+                      ? _emptyBox('진행 중인 청소가 없습니다')
+                      : _DateGroupedList(
+                          items: inProgress,
+                          dateOf: (c) => c.scheduledDate,
+                          itemBuilder: (c) => _InProgressCard(cleaning: c, branches: branches),
+                        ),
                 );
               },
             ),
 
-            // 특이사항 섹션
-            _SectionHeader(title: '특이사항', actionText: ''),
-            SizedBox(height: 10),
+            // 4) 완료 보고 — 기본 접힘 + 요약 카운트, 펼치면 더보기
+            completed.when(
+              loading: () => const _SectionLoading(),
+              error: (e, _) => _sectionError(e),
+              data: (raw) {
+                final list = _applyFilter(raw);
+                return CollapsibleSection(
+                  title: '완료 보고',
+                  leadingIcon: Icons.check_circle_outline,
+                  count: list.length,
+                  initiallyExpanded: false,
+                  child: list.isEmpty
+                      ? _emptyBox('아직 완료 보고가 없습니다')
+                      : ShowMoreList(
+                          itemCount: list.length,
+                          initialCount: 4,
+                          itemBuilder: (ctx, i) =>
+                              _CompletedReportCard(cleaning: list[i], branches: branches),
+                        ),
+                );
+              },
+            ),
+
+            // 5) 특이사항 — 기본 접힘
             notes.when(
-              loading: () => Center(child: CircularProgressIndicator()),
-              error: (e, _) => Text('오류: $e', style: TextStyle(color: AppColors.danger)),
-              data: (list) {
-                if (list.isEmpty) {
-                  return _emptyBox('아직 등록된 특이사항이 없습니다');
-                }
-                return Column(
-                  children: list.map((c) => _NoteCard(cleaning: c, branches: branches)).toList(),
+              loading: () => const _SectionLoading(),
+              error: (e, _) => _sectionError(e),
+              data: (raw) {
+                final list = _applyFilter(raw);
+                return CollapsibleSection(
+                  title: '특이사항',
+                  leadingIcon: Icons.sticky_note_2_outlined,
+                  count: list.length,
+                  initiallyExpanded: false,
+                  child: list.isEmpty
+                      ? _emptyBox('아직 등록된 특이사항이 없습니다')
+                      : ShowMoreList(
+                          itemCount: list.length,
+                          initialCount: 4,
+                          itemBuilder: (ctx, i) => _NoteCard(cleaning: list[i], branches: branches),
+                        ),
                 );
               },
             ),
-            SizedBox(height: 4),
-
-            // (옛 "청소 일정 미입력" 섹션은 상단 "지금 처리할 일"로 통합)
-
-            // (사용자 섹션 제거됨 - 관리자 설정에만 있음)
           ],
         ),
       ),
     );
   }
+
+  Widget _sectionError(Object e) => Padding(
+        padding: const EdgeInsets.only(bottom: 14),
+        child: Text('오류: $e', style: TextStyle(color: AppColors.danger)),
+      );
 
   /// 사용자 추가 다이얼로그
   Future<void> _showAddUserDialog(BuildContext context, WidgetRef ref) async {
@@ -467,6 +518,130 @@ class ManagerDashboardPage extends ConsumerWidget {
         ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('배정 실패: $e')));
       }
     }
+  }
+}
+
+// ===== 호점 필터 칩 바 =====
+
+class _BranchFilterBar extends StatelessWidget {
+  final List<BranchModel> branches;
+  final String? selected;
+  final ValueChanged<String?> onChanged;
+  const _BranchFilterBar({required this.branches, required this.selected, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    Widget chip({required String label, required bool active, required VoidCallback onTap, Color? color}) {
+      final c = color ?? AppColors.branch1;
+      return Padding(
+        padding: const EdgeInsets.only(right: 8),
+        child: Material(
+          color: active ? c.withOpacity(0.14) : context.brand.panel,
+          borderRadius: BorderRadius.circular(999),
+          child: InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(999),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(999),
+                border: Border.all(color: active ? c : context.brand.line),
+              ),
+              child: Text(
+                label,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                  color: active ? c : context.brand.muted,
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 36,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        children: [
+          chip(
+            label: '전체',
+            active: selected == null,
+            onTap: () => onChanged(null),
+            color: context.brand.text,
+          ),
+          ...branches.map((b) => chip(
+                label: b.name,
+                active: selected == b.id,
+                onTap: () => onChanged(b.id),
+                color: AppColors.branchColor(b.id),
+              )),
+        ],
+      ),
+    );
+  }
+}
+
+// ===== 섹션 로딩 플레이스홀더 =====
+
+class _SectionLoading extends StatelessWidget {
+  const _SectionLoading();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2)),
+        ),
+      ),
+    );
+  }
+}
+
+// ===== 날짜 그룹 + 더보기 결합 리스트 =====
+//
+// 항목을 오늘/내일/이번 주/이후 등으로 묶고, 각 그룹은 초기 N개만 표시 후 더보기.
+class _DateGroupedList extends StatelessWidget {
+  final List<CleaningModel> items;
+  final DateTime Function(CleaningModel) dateOf;
+  final Widget Function(CleaningModel) itemBuilder;
+  static const int _initialPerGroup = 4;
+  const _DateGroupedList({
+    required this.items,
+    required this.dateOf,
+    required this.itemBuilder,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    // 그룹핑
+    final groups = <String, List<CleaningModel>>{};
+    for (final c in items) {
+      final label = dateGroupLabel(dateOf(c));
+      groups.putIfAbsent(label, () => []).add(c);
+    }
+    final orderedLabels = groups.keys.toList()
+      ..sort((a, b) => dateGroupOrder(a).compareTo(dateGroupOrder(b)));
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final label in orderedLabels) ...[
+          DateGroupHeader(label: label, count: groups[label]!.length),
+          ShowMoreList(
+            itemCount: groups[label]!.length,
+            initialCount: _initialPerGroup,
+            itemBuilder: (ctx, i) => itemBuilder(groups[label]![i]),
+          ),
+          const SizedBox(height: 4),
+        ],
+      ],
+    );
   }
 }
 
@@ -739,59 +914,306 @@ class _StatsGrid extends StatelessWidget {
   }
 }
 
-// ===== 섹션 헤더 =====
+// ===== 완료 보고 이동: 대상 청소 선택 다이얼로그 =====
+//
+// 후보가 많아도 길어지지 않도록: 고정 높이 + 스크롤 + 게스트/날짜 검색 + 날짜 그룹 헤더.
+class _TransferTargetPicker extends StatefulWidget {
+  final String branchName;
+  final String who;
+  final int photoCount;
+  final List<CleaningModel> candidates;
+  final Map<String, String> guestByRes;
+  const _TransferTargetPicker({
+    required this.branchName,
+    required this.who,
+    required this.photoCount,
+    required this.candidates,
+    required this.guestByRes,
+  });
 
-class _SectionHeader extends StatelessWidget {
-  final String title;
-  final String? actionText;
-  final bool danger;
-  final int? count;
-  const _SectionHeader({required this.title, this.actionText, this.danger = false, this.count});
+  @override
+  State<_TransferTargetPicker> createState() => _TransferTargetPickerState();
+}
+
+class _TransferTargetPickerState extends State<_TransferTargetPicker> {
+  String _query = '';
+
+  String _guestOf(CleaningModel c) => widget.guestByRes[c.reservationId] ?? '';
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Row(
+    final q = _query.trim().toLowerCase();
+    final filtered = q.isEmpty
+        ? widget.candidates
+        : widget.candidates.where((c) {
+            final guest = _guestOf(c).toLowerCase();
+            final dateStr = DateFormat('M/d (E)', 'ko').format(c.scheduledDate).toLowerCase();
+            final who = (c.assigneeName ?? '').toLowerCase();
+            return guest.contains(q) || dateStr.contains(q) || who.contains(q);
+          }).toList();
+
+    // 날짜 그룹핑
+    final groups = <String, List<CleaningModel>>{};
+    for (final c in filtered) {
+      final label = dateGroupLabel(c.scheduledDate);
+      groups.putIfAbsent(label, () => []).add(c);
+    }
+    final orderedLabels = groups.keys.toList()
+      ..sort((a, b) => dateGroupOrder(a).compareTo(dateGroupOrder(b)));
+
+    final size = MediaQuery.of(context).size;
+    final maxH = size.height * 0.6;
+
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: maxH, maxWidth: 480),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (danger) ...[
-              Icon(Icons.warning_amber_rounded, color: AppColors.danger, size: 16),
-              SizedBox(width: 4),
-            ],
-            Text(
-              title,
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: context.brand.text),
+            // 헤더
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 18, 20, 6),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('올바른 청소 선택 · ${widget.branchName}',
+                      style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w800)),
+                  const SizedBox(height: 4),
+                  Text(
+                    '“${widget.who}”의 완료 보고(사진 ${widget.photoCount}장)를 옮길 청소를 고르세요',
+                    style: TextStyle(fontSize: 12, color: context.brand.muted),
+                  ),
+                ],
+              ),
             ),
-            if (count != null && count! > 0) ...[
-              SizedBox(width: 6),
-              Text(
-                '($count건)',
-                style: TextStyle(
-                  color: danger ? AppColors.danger : context.brand.muted,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
+            // 검색
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 8),
+              child: TextField(
+                autofocus: false,
+                onChanged: (v) => setState(() => _query = v),
+                decoration: InputDecoration(
+                  isDense: true,
+                  prefixIcon: const Icon(Icons.search, size: 18),
+                  hintText: '게스트명·날짜로 검색',
+                  contentPadding: const EdgeInsets.symmetric(vertical: 10),
                 ),
               ),
-            ],
+            ),
+            // 후보 리스트 (스크롤)
+            Flexible(
+              child: filtered.isEmpty
+                  ? Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Center(
+                        child: Text('검색 결과가 없습니다',
+                            style: TextStyle(color: context.brand.muted, fontSize: 13)),
+                      ),
+                    )
+                  : ListView(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                      children: [
+                        for (final label in orderedLabels) ...[
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(12, 8, 12, 2),
+                            child: DateGroupHeader(label: label, count: groups[label]!.length),
+                          ),
+                          ...groups[label]!.map((c) {
+                            final guest = _guestOf(c);
+                            final dateStr = DateFormat('M/d (E)', 'ko').format(c.scheduledDate);
+                            final statusKo = c.isUnassigned
+                                ? '미배정'
+                                : (c.assigneeName?.isNotEmpty == true ? c.assigneeName! : '배정됨');
+                            return InkWell(
+                              onTap: () => Navigator.pop(context, c),
+                              borderRadius: BorderRadius.circular(10),
+                              child: Padding(
+                                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                                child: Row(
+                                  children: [
+                                    SizedBox(
+                                      width: 64,
+                                      child: Text(dateStr,
+                                          style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                                    ),
+                                    Expanded(
+                                      child: Text(
+                                        guest.isNotEmpty ? guest : '(게스트 미상)',
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: const TextStyle(fontSize: 13),
+                                      ),
+                                    ),
+                                    Text(statusKo,
+                                        style: TextStyle(fontSize: 11, color: context.brand.muted)),
+                                  ],
+                                ),
+                              ),
+                            );
+                          }),
+                        ],
+                      ],
+                    ),
+            ),
+            // 취소
+            Padding(
+              padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('취소'),
+                ),
+              ),
+            ),
           ],
         ),
-        if (actionText != null && actionText!.isNotEmpty)
-          Text(actionText!, style: TextStyle(color: AppColors.branch1, fontSize: 12, fontWeight: FontWeight.w600)),
-      ],
+      ),
     );
   }
 }
 
 // ===== 완료 보고 카드 =====
 
-class _CompletedReportCard extends StatelessWidget {
+class _CompletedReportCard extends ConsumerWidget {
   final CleaningModel cleaning;
   final List<BranchModel> branches;
   const _CompletedReportCard({required this.cleaning, required this.branches});
 
+  /// 완료 보고를 올바른 청소로 이동(transfer) — 청소원이 엉뚱한 청소를 완료 보고했을 때,
+  /// 매니저가 사진·메모·완료시각을 '실제로 한 청소'로 옮긴다.
+  ///  - 대상(target): 완료처리 + 이 카드(source)의 사진/메모/완료시각/체크리스트(전체체크) 복사,
+  ///                  담당자는 대상에 이미 있으면 유지, 없으면 source의 담당자로 설정
+  ///  - 원본(source): 미배정으로 복구 + 사진/메모/완료/담당 제거 (다시 정상 처리 가능)
+  /// 두 문서를 batch로 원자적 수정. (firestore.rules가 매니저 직접 수정 허용)
+  Future<void> _transferToCorrectCleaning(BuildContext context, WidgetRef ref) async {
+    final db = ref.read(firestoreProvider);
+    final branch = branches.firstWhere(
+      (b) => b.id == cleaning.branchId,
+      orElse: () => BranchModel(id: cleaning.branchId, name: cleaning.branchId, rooms: 0, maxOccupancy: 0, color: '#64748B', iCalSourceUrl: '', active: true),
+    );
+    final who = cleaning.assigneeName?.isNotEmpty == true ? cleaning.assigneeName! : '청소원';
+
+    // 후보 청소 + 게스트명 조회 (같은 호점, 미완료, 원본 날짜 ±45일)
+    List<CleaningModel> candidates;
+    final guestByRes = <String, String>{};
+    try {
+      final lo = cleaning.scheduledDate.subtract(const Duration(days: 45));
+      final hi = cleaning.scheduledDate.add(const Duration(days: 45));
+      final cSnap = await db.collection('cleanings').where('branchId', isEqualTo: cleaning.branchId).get();
+      candidates = cSnap.docs
+          .map(CleaningModel.fromDoc)
+          .where((c) => c.id != cleaning.id && !c.isCompleted &&
+              c.scheduledDate.isAfter(lo) && c.scheduledDate.isBefore(hi))
+          .toList()
+        ..sort((a, b) => a.scheduledDate.compareTo(b.scheduledDate));
+      final rSnap = await db.collection('reservations').where('branchId', isEqualTo: cleaning.branchId).get();
+      for (final d in rSnap.docs) {
+        final r = ReservationModel.fromDoc(d);
+        guestByRes[r.id] = r.guestName;
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('후보 조회 실패: $e'), backgroundColor: AppColors.danger),
+        );
+      }
+      return;
+    }
+    if (!context.mounted) return;
+    if (candidates.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('이동할 대상 청소가 없습니다 (같은 호점·미완료)')),
+      );
+      return;
+    }
+
+    // 대상 선택 — 스크롤 가능한 제한 높이 + 검색 + 날짜 그룹
+    final target = await showDialog<CleaningModel>(
+      context: context,
+      builder: (ctx) => _TransferTargetPicker(
+        branchName: branch.name,
+        who: who,
+        photoCount: cleaning.photoUrls.length,
+        candidates: candidates,
+        guestByRes: guestByRes,
+      ),
+    );
+    if (target == null || !context.mounted) return;
+
+    // 확인
+    final tgtDateStr = DateFormat('M/d (E)', 'ko').format(target.scheduledDate);
+    final tgtGuest = guestByRes[target.reservationId] ?? '';
+    final srcDateStr = DateFormat('M/d (E)', 'ko').format(cleaning.scheduledDate);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('완료 보고 이동'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('완료 보고(사진 ${cleaning.photoUrls.length}장)를 아래로 이동합니다.', style: const TextStyle(fontSize: 13)),
+            const SizedBox(height: 12),
+            Text('FROM  $srcDateStr · $who', style: TextStyle(color: context.brand.muted, decoration: TextDecoration.lineThrough)),
+            const SizedBox(height: 2),
+            Text('TO      $tgtDateStr · ${tgtGuest.isNotEmpty ? tgtGuest : target.branchId}', style: const TextStyle(fontWeight: FontWeight.w800)),
+            const SizedBox(height: 12),
+            const Text('대상은 완료처리되고, 원본은 미배정으로 복구됩니다. 예약 정보는 바뀌지 않습니다.', style: TextStyle(fontSize: 12, height: 1.4)),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('취소')),
+          FilledButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('이동')),
+        ],
+      ),
+    );
+    if (confirmed != true) return;
+
+    try {
+      final batch = db.batch();
+      // 대상 → 완료처리 (source의 결과 복사)
+      batch.update(db.collection('cleanings').doc(target.id), {
+        'status': 'completed',
+        'photoUrls': cleaning.photoUrls,
+        'memo': cleaning.memo,
+        'completedAt': cleaning.completedAt != null
+            ? Timestamp.fromDate(cleaning.completedAt!)
+            : FieldValue.serverTimestamp(),
+        'checklist': target.checklist.map((i) => i.copyWith(checked: true).toMap()).toList(),
+        'assigneeUid': target.assigneeUid ?? cleaning.assigneeUid,
+        'assigneeName': target.assigneeName ?? cleaning.assigneeName,
+      });
+      // 원본 → 미배정 복구
+      batch.update(db.collection('cleanings').doc(cleaning.id), {
+        'status': 'unassigned',
+        'assigneeUid': null,
+        'assigneeName': null,
+        'photoUrls': <String>[],
+        'memo': '',
+        'completedAt': FieldValue.delete(),
+        'nextGuestSnapshot': FieldValue.delete(),
+        'checklist': cleaning.checklist.map((i) => i.copyWith(checked: false).toMap()).toList(),
+      });
+      await batch.commit();
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('완료 보고를 $tgtDateStr 청소로 이동했습니다'), backgroundColor: AppColors.ok),
+        );
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('이동 실패: $e'), backgroundColor: AppColors.danger),
+        );
+      }
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final isManager = ref.watch(currentUserProvider).value?.isManager ?? false;
     final branch = branches.firstWhere(
       (b) => b.id == cleaning.branchId,
       orElse: () => BranchModel(id: cleaning.branchId, name: cleaning.branchId, rooms: 0, maxOccupancy: 0, color: '#64748B', iCalSourceUrl: '', active: true),
@@ -857,6 +1279,18 @@ class _CompletedReportCard extends StatelessWidget {
                       style: TextStyle(color: context.brand.muted, fontSize: 11, fontWeight: FontWeight.w600),
                     ),
                     SizedBox(width: 6),
+                  ],
+                  // 완료 보고를 올바른 청소로 이동 — 매니저 전용
+                  if (isManager) ...[
+                    InkWell(
+                      onTap: () => _transferToCorrectCleaning(context, ref),
+                      borderRadius: BorderRadius.circular(99),
+                      child: Padding(
+                        padding: const EdgeInsets.all(4),
+                        child: Icon(Icons.swap_horiz, size: 18, color: AppColors.branch1),
+                      ),
+                    ),
+                    SizedBox(width: 2),
                   ],
                   Icon(Icons.chevron_right, color: context.brand.dim, size: 18),
                 ],

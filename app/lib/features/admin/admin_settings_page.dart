@@ -16,6 +16,45 @@ import '../manager/manager_dashboard_page.dart' show allUsersProvider;
 import '../notifications/notifications_page.dart' show NotificationItem, sentNoticesProvider;
 import 'apk_picker_stub.dart' if (dart.library.js_interop) 'apk_picker_web.dart';
 
+/// 공통 확인 다이얼로그 헬퍼.
+/// 되돌리기 어렵거나 직원 전체에 영향을 주는 작업 직전에 호출한다.
+/// [danger] 가 true 면 실행 버튼을 빨강(AppColors.danger)으로 표시한다.
+/// 사용자가 [confirmText] 를 누르면 true, 취소/바깥 탭이면 false 를 반환.
+Future<bool> _confirm(
+  BuildContext context, {
+  required String title,
+  required String message,
+  String confirmText = '실행',
+  String cancelText = '취소',
+  bool danger = false,
+  IconData? icon,
+}) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: Row(
+        children: [
+          if (icon != null) ...[
+            Icon(icon, color: danger ? AppColors.danger : AppColors.warn, size: 22),
+            const SizedBox(width: 8),
+          ],
+          Expanded(child: Text(title)),
+        ],
+      ),
+      content: Text(message, style: const TextStyle(fontSize: 13, height: 1.5)),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text(cancelText)),
+        FilledButton(
+          onPressed: () => Navigator.of(ctx).pop(true),
+          style: danger ? FilledButton.styleFrom(backgroundColor: AppColors.danger) : null,
+          child: Text(confirmText),
+        ),
+      ],
+    ),
+  );
+  return result == true;
+}
+
 /// 관리자 설정 (매니저 전용)
 /// - 사용자 추가/관리
 /// - (추후) 호점 설정, iCal URL 관리, 알림 설정 등
@@ -303,6 +342,20 @@ class AdminSettingsPage extends ConsumerWidget {
                         );
                         return;
                       }
+                      final targetLabel = target == 'all'
+                          ? '전체 사용자'
+                          : target == 'cleaners'
+                              ? '청소원'
+                              : '관리자';
+                      final ok = await _confirm(
+                        ctx,
+                        title: '공지 전송',
+                        message: '"$title" 공지를 $targetLabel 에게 즉시 전송합니다.\n'
+                            '수신자 전원에게 푸시 알림이 발송됩니다. 계속할까요?',
+                        confirmText: '전송',
+                        icon: Icons.campaign_outlined,
+                      );
+                      if (!ok) return;
                       setState(() => loading = true);
                       try {
                         final result = await ref.read(functionsServiceProvider).createManagerNotice(
@@ -398,6 +451,16 @@ class AdminSettingsPage extends ConsumerWidget {
                         onPressed: loading
                             ? null
                             : () async {
+                                final ok = await _confirm(
+                                  ctx,
+                                  title: '초기 6명 일괄 추가',
+                                  message: '박제인(매니저), 송현주(실장), 에블린·김소영·리첼·조은희(청소원) '
+                                      '6명을 PIN 000000 으로 한 번에 등록합니다.\n'
+                                      '이미 있는 사용자는 건너뜁니다. 계속할까요?',
+                                  confirmText: '추가',
+                                  icon: Icons.group_add_outlined,
+                                );
+                                if (!ok) return;
                                 setState(() => loading = true);
                                 await _batchAddInitialUsers(context, ref);
                                 if (ctx.mounted) Navigator.pop(ctx);
@@ -622,27 +685,17 @@ class _AppVersionSection extends ConsumerWidget {
   }
 
   Future<void> _confirmUnregister(BuildContext context, WidgetRef ref) async {
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('버전 등록 취소'),
-        content: Text(
-          'Firestore 의 config/appVersion 문서를 삭제합니다.\n'
-          '이후 어떤 기기에서도 업데이트 다이얼로그가 더 이상 표시되지 않습니다.\n\n'
+    final ok = await _confirm(
+      context,
+      title: '버전 등록 취소',
+      message: '현재 등록된 앱 버전 정보(config/appVersion)를 삭제합니다.\n'
+          '이후 어떤 기기에서도 업데이트 안내가 더 이상 표시되지 않습니다.\n\n'
           '계속할까요?',
-          style: TextStyle(fontSize: 13),
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: Text('취소')),
-          FilledButton(
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text('삭제'),
-          ),
-        ],
-      ),
+      confirmText: '삭제',
+      danger: true,
+      icon: Icons.delete_outline,
     );
-    if (ok != true) return;
+    if (!ok) return;
     try {
       await ref.read(firestoreProvider).collection('config').doc('appVersion').delete();
       if (context.mounted) {
@@ -869,6 +922,22 @@ class _AppVersionSection extends ConsumerWidget {
       return;
     }
 
+    if (!context.mounted) return;
+    final proceed = await _confirm(
+      context,
+      title: '새 버전 등록',
+      message: mandatory
+          ? '버전 $version (code $code) 을(를) 최신 버전으로 등록합니다.\n\n'
+              '필수 업데이트가 켜져 있어, 이 버전보다 낮은 모든 기기에서 '
+              '닫을 수 없는 업데이트 안내가 표시됩니다. 계속할까요?'
+          : '버전 $version (code $code) 을(를) 최신 버전으로 등록합니다.\n'
+              '이전 버전 기기에 업데이트 안내가 표시됩니다. 계속할까요?',
+      confirmText: '등록',
+      danger: mandatory,
+      icon: mandatory ? Icons.warning_amber_rounded : Icons.system_update,
+    );
+    if (!proceed) return;
+
     try {
       final model = AppVersionModel(
         latest: version,
@@ -1043,11 +1112,30 @@ class _BranchSyncRow extends ConsumerWidget {
       ),
     );
     if (saved != true) return;
+    final newUrl = ctrl.text.trim();
+    final isClearing = newUrl.isEmpty && branch.iCalSourceUrl.isNotEmpty;
+    final isChanging = newUrl.isNotEmpty && newUrl != branch.iCalSourceUrl;
+    if (isClearing || isChanging) {
+      if (!context.mounted) return;
+      final ok = await _confirm(
+        context,
+        title: '${branch.name} iCal 주소 변경',
+        message: isClearing
+            ? '${branch.name} 의 iCal 연결을 해제합니다.\n'
+                '이후 이 호점은 더 이상 자동 동기화되지 않습니다. 계속할까요?'
+            : '${branch.name} 의 iCal 동기화 주소를 새 주소로 변경합니다.\n'
+                '잘못된 주소를 입력하면 예약 일정이 어긋날 수 있습니다. 계속할까요?',
+        confirmText: '저장',
+        danger: isClearing,
+        icon: Icons.link,
+      );
+      if (!ok) return;
+    }
     try {
       await FirebaseFirestore.instance
           .collection('branches')
           .doc(branch.id)
-          .update({'iCalSourceUrl': ctrl.text.trim()});
+          .update({'iCalSourceUrl': newUrl});
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('${branch.name} iCal URL 저장됨'), backgroundColor: AppColors.ok),
@@ -1061,6 +1149,16 @@ class _BranchSyncRow extends ConsumerWidget {
   }
 
   Future<void> _syncNow(BuildContext context, WidgetRef ref) async {
+    final ok = await _confirm(
+      context,
+      title: '${branch.name} 지금 동기화',
+      message: 'iCal 원본을 기준으로 ${branch.name} 의 예약 일정을 즉시 맞춥니다.\n'
+          '원본에 없는 일정은 추가/삭제될 수 있습니다. 계속할까요?',
+      confirmText: '동기화',
+      icon: Icons.sync,
+    );
+    if (!ok) return;
+    if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(content: Text('${branch.name} 동기화 중...'), duration: const Duration(seconds: 1)),
     );
@@ -1339,23 +1437,17 @@ class _SentNoticeCard extends ConsumerWidget {
   }
 
   Future<void> _deleteNotice(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('공지 삭제'),
-        content: Text('"${notice.title}" 공지를 삭제하시겠습니까?\n수신자의 알림 목록에서도 사라집니다.'),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('취소')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            child: Text('삭제'),
-          ),
-        ],
-      ),
+    final confirmed = await _confirm(
+      context,
+      title: '공지 삭제',
+      message: '"${notice.title}" 공지를 삭제합니다.\n'
+          '수신자 전원의 알림 목록에서도 사라지며 되돌릴 수 없습니다. 계속할까요?',
+      confirmText: '삭제',
+      danger: true,
+      icon: Icons.delete_outline,
     );
 
-    if (confirmed != true) return;
+    if (!confirmed) return;
     try {
       await ref.read(functionsServiceProvider).deleteManagerNotice(notice.id);
       if (context.mounted) {
@@ -1472,25 +1564,21 @@ class _UserRow extends ConsumerWidget {
   }
 
   Future<void> _showDeleteUserDialog(BuildContext context, WidgetRef ref) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('사용자 삭제'),
-        content: Text(
-          '${user.name} 님을 완전히 삭제하시겠습니까?\n'
-          '계정과 모든 정보가 영구 삭제되며 복구할 수 없습니다.',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx, false), child: Text('취소')),
-          FilledButton(
-            onPressed: () => Navigator.pop(ctx, true),
-            style: FilledButton.styleFrom(backgroundColor: AppColors.danger),
-            child: Text('삭제'),
-          ),
-        ],
-      ),
+    final roleLabel = user.isManager
+        ? '매니저'
+        : user.isChief
+            ? '실장'
+            : '청소원';
+    final confirmed = await _confirm(
+      context,
+      title: '사용자 삭제',
+      message: '${user.name} ($roleLabel) 님을 완전히 삭제합니다.\n'
+          '계정과 모든 정보가 영구 삭제되며 복구할 수 없습니다. 계속할까요?',
+      confirmText: '삭제',
+      danger: true,
+      icon: Icons.delete_outline,
     );
-    if (confirmed != true) return;
+    if (!confirmed) return;
     try {
       await ref.read(functionsServiceProvider).deleteUser(user.uid);
       if (context.mounted) {
@@ -1546,6 +1634,17 @@ class _UserRow extends ConsumerWidget {
       }
       return;
     }
+    if (!context.mounted) return;
+    final ok = await _confirm(
+      context,
+      title: '${user.name} PIN 초기화',
+      message: '${user.name} 님의 로그인 PIN을 "$newPin" 으로 재설정합니다.\n'
+          '기존 PIN은 즉시 무효가 되며, 본인에게 새 PIN을 안내해야 합니다. 계속할까요?',
+      confirmText: '초기화',
+      danger: true,
+      icon: Icons.lock_reset,
+    );
+    if (!ok) return;
     try {
       await ref.read(functionsServiceProvider).updateUserPin(uid: user.uid, pin: newPin);
       if (context.mounted) {

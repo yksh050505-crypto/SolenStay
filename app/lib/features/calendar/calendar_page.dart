@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -421,16 +423,35 @@ class _MonthGrid extends StatelessWidget {
     final weeks = _buildWeeks();
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 12),
-      child: Column(
-        children: weeks.map((week) => _WeekRow(
-          days: week,
-          month: month,
-          today: today,
-          selectedDay: selectedDay,
-          reservations: reservations,
-          cleaningByResId: cleaningByResId,
-          onDayTap: onDayTap,
-        )).toList(),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          // _WeekRow와 동일한 셀 폭 계산 → 칸별 글자 reflow 미리 산출
+          final compact = constraints.maxWidth < 380;
+          final gap = compact ? 4.0 : 6.0;
+          final cellW = (constraints.maxWidth - gap * 6) / 7;
+          final reflowLabels = _computeReflowLabels(
+            reservations: reservations,
+            weeks: weeks,
+            month: month,
+            cellW: cellW,
+            gap: gap,
+            scaler: MediaQuery.textScalerOf(context),
+            today: today,
+            cleaningByResId: cleaningByResId,
+          );
+          return Column(
+            children: weeks.map((week) => _WeekRow(
+              days: week,
+              month: month,
+              today: today,
+              selectedDay: selectedDay,
+              reservations: reservations,
+              cleaningByResId: cleaningByResId,
+              onDayTap: onDayTap,
+              reflowLabels: reflowLabels,
+            )).toList(),
+          );
+        },
       ),
     );
   }
@@ -448,6 +469,8 @@ class _WeekRow extends StatelessWidget {
   final List<ReservationModel> reservations;
   final Map<String, CleaningModel> cleaningByResId;
   final ValueChanged<DateTime> onDayTap;
+  /// key: "${reservationId}|${weekStartIso}" → 이 주 구간에 표시할 라벨 글자 (reflow)
+  final Map<String, String> reflowLabels;
   const _WeekRow({
     required this.days,
     required this.month,
@@ -456,6 +479,7 @@ class _WeekRow extends StatelessWidget {
     required this.reservations,
     required this.cleaningByResId,
     required this.onDayTap,
+    required this.reflowLabels,
   });
 
   /// 이 주에 표시할 pill 목록 계산 (체크인 셀 중앙 → 체크아웃 셀 중앙)
@@ -572,12 +596,15 @@ class _WeekRow extends StatelessWidget {
                 // 체크인 셀 중앙 = startCol * (cellW+gap) + cellW/2
                 // 체크아웃 셀 중앙 = endCol * (cellW+gap) + cellW/2
                 // cap 없으면 셀 끝까지 (좌측: 0, 우측: 전체 폭)
-                final left = (r.isStartCap || r.isMonthClippedStart)
+                // 실제 체크인/아웃(cap)만 셀 "중앙"에서 시작/끝(핸드오버 표현).
+                // 그 외엔 주 경계든 월 경계든 동일하게 "보이는 셀의 가장자리"까지 꽉 채워
+                // 다음 주/다음 달로 이어짐을 표시 (이전엔 월 경계가 중앙에서 잘리던 버그).
+                final left = r.isStartCap
                     ? r.startCol * (cellW + gap) + cellW / 2
-                    : 0.0;
-                final right = (r.isEndCap || r.isMonthClippedEnd)
+                    : r.startCol * (cellW + gap);
+                final right = r.isEndCap
                     ? r.endCol * (cellW + gap) + cellW / 2
-                    : 7 * (cellW + gap) - gap;
+                    : r.endCol * (cellW + gap) + cellW;
                 final width = right - left;
                 // 호점 트랙은 위에서부터 (track 0 = 맨 위)
                 final invTrack = (trackCount - 1) - p.track;
@@ -593,6 +620,8 @@ class _WeekRow extends StatelessWidget {
                 // 한 주의 시작 셀(일요일, col 0)에 위치한 pill — 이전 주에서 이어진 경우라도
                 // 텍스트를 다시 표시해서 끝나는 셀에서 잘리는 경우를 보완.
                 final isWeekStart = r.startCol == 0 && !r.isStartCap;
+                final weekStart = DateTime(days.first.year, days.first.month, days.first.day);
+                final segLabel = reflowLabels['${r.reservation.id}|${weekStart.toIso8601String()}'] ?? '';
                 return Positioned(
                   left: left,
                   width: width,
@@ -605,6 +634,8 @@ class _WeekRow extends StatelessWidget {
                       isEndCap: r.isEndCap,
                       isUnassigned: isUnassigned,
                       isWeekStart: isWeekStart,
+                      labelText: segLabel,
+                      showChip: r.isStartCap,
                     ),
                   ),
                 );
@@ -720,6 +751,113 @@ class _DayCard extends StatelessWidget {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// Pill 라벨 reflow — 긴 이름이 한 칸에서 잘리면 이어지는 칸으로 "이어서" 표시
+// ═══════════════════════════════════════════════════════════════════
+
+const TextStyle _pillNameStyle = TextStyle(
+    fontSize: 12, color: Colors.white, fontWeight: FontWeight.w700, letterSpacing: -0.2);
+const TextStyle _pillChipStyle = TextStyle(
+    fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: -0.3, height: 1.1);
+
+double _measureTextWidth(String text, TextStyle style, TextScaler scaler) {
+  final tp = TextPainter(
+    text: TextSpan(text: text, style: style),
+    textDirection: ui.TextDirection.ltr,
+    textScaler: scaler,
+    maxLines: 1,
+  )..layout();
+  return tp.width;
+}
+
+/// text[from:] 중 maxWidth 안에 들어가는 최대 글자 수
+int _charsThatFit(String text, int from, double maxWidth, TextScaler scaler) {
+  if (from >= text.length || maxWidth <= 0) return 0;
+  int lo = 0, hi = text.length - from, best = 0;
+  while (lo <= hi) {
+    final mid = (lo + hi) ~/ 2;
+    final w = _measureTextWidth(text.substring(from, from + mid), _pillNameStyle, scaler);
+    if (w <= maxWidth) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return best;
+}
+
+/// 각 예약 라벨을 주(week) 구간별로 잘라 "이어 흐르게" 한 맵.
+/// key: "${reservationId}|${weekStartIso}" → 그 구간에 표시할 글자(앞 구간에서 이어짐).
+Map<String, String> _computeReflowLabels({
+  required List<ReservationModel> reservations,
+  required List<List<DateTime>> weeks,
+  required DateTime month,
+  required double cellW,
+  required double gap,
+  required TextScaler scaler,
+  required DateTime today,
+  required Map<String, CleaningModel> cleaningByResId,
+}) {
+  DateTime d0(DateTime d) => DateTime(d.year, d.month, d.day);
+  DateTime maxD(DateTime a, DateTime b) => a.isAfter(b) ? a : b;
+  DateTime minD(DateTime a, DateTime b) => a.isBefore(b) ? a : b;
+  bool same(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  final monthStart = DateTime(month.year, month.month, 1);
+  final monthEnd = DateTime(month.year, month.month + 1, 0);
+  final todayD = d0(today);
+  final out = <String, String>{};
+
+  for (final r in reservations) {
+    final inDay = d0(r.checkIn);
+    final outDay = d0(r.checkOut);
+    if (outDay.isBefore(todayD)) continue; // 과거 예약은 pill 자체가 숨겨짐
+    final name = '${r.guestName}(${r.guestCount}명)';
+    final cleaning = cleaningByResId[r.id];
+    final isUnassigned = cleaning == null || cleaning.isUnassigned;
+    int offset = 0;
+    for (final week in weeks) {
+      final weekStart = d0(week.first);
+      final weekEnd = d0(week.last);
+      final visStart = maxD(weekStart, monthStart);
+      final visEnd = minD(weekEnd, monthEnd);
+      if (outDay.isBefore(visStart) || inDay.isAfter(visEnd)) continue;
+      final clampedIn = maxD(inDay, visStart);
+      final clampedOut = minD(outDay, visEnd);
+      final isStartCap = same(clampedIn, inDay);
+      final isEndCap = same(clampedOut, outDay);
+      final startCol = clampedIn.difference(weekStart).inDays;
+      final endCol = clampedOut.difference(weekStart).inDays;
+      final left = isStartCap ? startCol * (cellW + gap) + cellW / 2 : startCol * (cellW + gap);
+      final right = isEndCap ? endCol * (cellW + gap) + cellW / 2 : endCol * (cellW + gap) + cellW;
+      final segW = right - left;
+      // 시작 구간(호점 칩 표시)에서는 칩(+미배정 ?) 폭만큼 이름 공간이 줄어듦
+      double chipW = 0;
+      if (isStartCap) {
+        chipW = _measureTextWidth(AppColors.branchShortLabel(r.branchId), _pillChipStyle, scaler) + 8 + 4;
+        if (isUnassigned) {
+          chipW += _measureTextWidth('?',
+                  const TextStyle(fontSize: 15, fontWeight: FontWeight.w900, letterSpacing: -0.5), scaler) +
+              4;
+        }
+      }
+      final padLR = 6 + (isEndCap ? 8.0 : 4.0);
+      final avail = segW - padLR - chipW;
+      final key = '${r.id}|${weekStart.toIso8601String()}';
+      if (offset >= name.length) {
+        out[key] = '';
+        continue;
+      }
+      final count = _charsThatFit(name, offset, avail, scaler);
+      out[key] = name.substring(offset, offset + count);
+      offset += count;
+    }
+  }
+  return out;
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // Pill (overlay bar)
 // ═══════════════════════════════════════════════════════════════════
 
@@ -731,12 +869,18 @@ class _Pill extends StatelessWidget {
   /// 한 주의 시작 셀(일요일)에 위치한 pill이면 true.
   /// isStartCap이 false라도 (이전 주에서 이어진 pill) 다음 주 첫 셀에 텍스트를 다시 표시.
   final bool isWeekStart;
+  /// 이 구간에 표시할 라벨 글자(앞 구간에서 잘린 다음 글자부터 이어짐). 빈 문자열이면 글자 없음.
+  final String labelText;
+  /// 호점 칩(+미배정 ?)을 표시할지 — 실제 체크인 구간에서만 true.
+  final bool showChip;
   const _Pill({
     required this.reservation,
     required this.isStartCap,
     required this.isEndCap,
     required this.isUnassigned,
     this.isWeekStart = false,
+    this.labelText = '',
+    this.showChip = false,
   });
 
   @override
@@ -749,12 +893,21 @@ class _Pill extends StatelessWidget {
       topRight: Radius.circular(isEndCap ? 11 : 0),
       bottomRight: Radius.circular(isEndCap ? 11 : 0),
     );
-    final borderColor = Colors.black.withOpacity(0.25);
+    final borderColor = Colors.black.withOpacity(0.22);
     final borderSide = BorderSide(color: borderColor, width: 1);
+    // 입체감: 그라데이션(위 밝게·아래 어둡게) + 살짝 뜬 그림자.
+    // 주의: 테두리는 반드시 "균일 색"이어야 함 (둥근 모서리+비균일 테두리는 paint 예외 → 글자 사라짐).
+    final topColor = Color.lerp(color, Colors.white, 0.18)!;
+    final bottomColor = Color.lerp(color, Colors.black, 0.13)!;
 
     return Container(
       decoration: BoxDecoration(
-        color: color,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [topColor, color, bottomColor],
+          stops: const [0.0, 0.5, 1.0],
+        ),
         borderRadius: radius,
         border: Border(
           top: borderSide,
@@ -762,62 +915,76 @@ class _Pill extends StatelessWidget {
           left: isStartCap ? borderSide : BorderSide.none,
           right: isEndCap ? borderSide : BorderSide.none,
         ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.20),
+            blurRadius: 2.5,
+            offset: const Offset(0, 1.4),
+          ),
+        ],
       ),
       padding: EdgeInsets.only(
-        left: isStartCap ? 6 : 0,
-        right: isEndCap ? 8 : 0,
+        left: 6,
+        right: isEndCap ? 8 : 4,
       ),
       alignment: Alignment.centerLeft,
-      child: isStartCap
+      // 호점 칩은 실제 체크인 구간에서만, 이름 글자는 reflow로 이어지는 칸마다 "잘린 다음 글자부터" 표시
+      child: (showChip || labelText.isNotEmpty)
           ? Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                // 호점 라벨 (1호/2호/3호)
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    AppColors.branchShortLabel(reservation.branchId),
-                    style: TextStyle(
-                      fontSize: 9,
-                      color: color,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: -0.3,
-                      height: 1.1,
+                if (showChip) ...[
+                  // 호점 라벨 (1호/2호/3호)
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(4),
                     ),
-                  ),
-                ),
-                const SizedBox(width: 4),
-                if (isUnassigned) ...[
-                  const Text(
-                    '?',
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: Color(0xFFFACC15), // 노란색 (yellow-400)
-                      fontWeight: FontWeight.w900,
-                      height: 1.0,
-                      letterSpacing: -0.5,
+                    child: Text(
+                      AppColors.branchShortLabel(reservation.branchId),
+                      style: TextStyle(
+                        fontSize: 9,
+                        color: color,
+                        fontWeight: FontWeight.w900,
+                        letterSpacing: -0.3,
+                        height: 1.1,
+                      ),
                     ),
                   ),
                   const SizedBox(width: 4),
-                ],
-                Flexible(
-                  child: Text(
-                    '${reservation.guestName}(${reservation.guestCount}명)',
-                    style: const TextStyle(
-                      fontSize: 12,
-                      color: Colors.white,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: -0.2,
+                  if (isUnassigned) ...[
+                    const Text(
+                      '?',
+                      style: TextStyle(
+                        fontSize: 15,
+                        color: Color(0xFFFACC15), // 노란색 (yellow-400)
+                        fontWeight: FontWeight.w900,
+                        height: 1.0,
+                        letterSpacing: -0.5,
+                      ),
                     ),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    softWrap: false,
+                    const SizedBox(width: 4),
+                  ],
+                ],
+                if (labelText.isNotEmpty)
+                  Flexible(
+                    child: Text(
+                      labelText,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                        shadows: [
+                          Shadow(color: Color(0x66000000), blurRadius: 1.5, offset: Offset(0, 0.5)),
+                        ],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
+                      softWrap: false,
+                    ),
                   ),
-                ),
               ],
             )
           : null,
@@ -948,7 +1115,7 @@ class _ReservationCard extends ConsumerWidget {
       if (cleaning.isCompleted) {
         // 완료된 청소는 본인 작업 여부 무관 — 항상 "✓ 완료"
         rightAction = Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             color: AppColors.ok.withOpacity(0.12),
             borderRadius: BorderRadius.circular(999),
@@ -956,9 +1123,9 @@ class _ReservationCard extends ConsumerWidget {
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: const [
-              Icon(Icons.check, size: 12, color: AppColors.ok),
-              SizedBox(width: 2),
-              Text('완료', style: TextStyle(color: AppColors.ok, fontSize: 10, fontWeight: FontWeight.w700)),
+              Icon(Icons.check, size: 13, color: AppColors.ok),
+              SizedBox(width: 3),
+              Text('완료', style: TextStyle(color: AppColors.ok, fontSize: 11, fontWeight: FontWeight.w700)),
             ],
           ),
         );
@@ -979,21 +1146,21 @@ class _ReservationCard extends ConsumerWidget {
         );
       } else if (isMine) {
         rightAction = Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             color: AppColors.branch1.withOpacity(0.12),
             borderRadius: BorderRadius.circular(999),
           ),
-          child: Text('내 작업', style: TextStyle(color: AppColors.branch1, fontSize: 10, fontWeight: FontWeight.w700)),
+          child: Text('내 작업', style: TextStyle(color: AppColors.branch1, fontSize: 11, fontWeight: FontWeight.w700)),
         );
       } else if (cleaning.assigneeUid != null) {
         rightAction = Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
           decoration: BoxDecoration(
             color: context.brand.muted.withOpacity(0.12),
             borderRadius: BorderRadius.circular(999),
           ),
-          child: Text('배정됨', style: TextStyle(color: context.brand.muted, fontSize: 10, fontWeight: FontWeight.w700)),
+          child: Text('배정됨', style: TextStyle(color: context.brand.muted, fontSize: 11, fontWeight: FontWeight.w700)),
         );
       }
     }

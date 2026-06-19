@@ -86,16 +86,17 @@ final todayCleaningsProvider = StreamProvider<List<CleaningModel>>((ref) {
         ..sort((a, b) => a.branchId.compareTo(b.branchId)));
 });
 
-// ===== 청소 — 앞으로 (캘린더용) =====
-// 윈도우를 upcomingReservationsProvider(오늘-7 ~ 오늘+60)와 동일하게 맞춰야
+// ===== 청소 — 캘린더용 (앞뒤 약 2개월) =====
+// 윈도우를 upcomingReservationsProvider(오늘-60 ~ 오늘+60)와 동일하게 맞춰야
 // 캘린더에 표시되는 모든 예약 pill이 청소 데이터를 갖게 되어 배정 여부 배지가 정확해짐.
+// 과거 청소/예약도 캘린더에 보이도록 시작점을 오늘-60일로 확대.
 final upcomingCleaningsProvider = StreamProvider<List<CleaningModel>>((ref) {
   final user = ref.watch(firebaseUserProvider).value;
   if (user == null) return Stream.value(const <CleaningModel>[]);
 
   final now = DateTime.now();
-  final start = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 7));
-  final end = start.add(const Duration(days: 67));
+  final start = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 60));
+  final end = start.add(const Duration(days: 120));
 
   return ref
       .watch(firestoreProvider)
@@ -113,9 +114,9 @@ final upcomingReservationsProvider = StreamProvider<List<ReservationModel>>((ref
   if (user == null) return Stream.value(const <ReservationModel>[]);
 
   final now = DateTime.now();
-  // 오늘 - 7일 ~ 오늘 + 60일 (캘린더 현재월 + 다음월 표시에 충분)
-  final start = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 7));
-  final end = start.add(const Duration(days: 67));
+  // 오늘 - 60일 ~ 오늘 + 60일 (앞뒤 약 2개월 — 과거 예약/청소도 캘린더에 표시)
+  final start = DateTime(now.year, now.month, now.day).subtract(const Duration(days: 60));
+  final end = start.add(const Duration(days: 120));
 
   return ref
       .watch(firestoreProvider)
@@ -161,6 +162,20 @@ final unassignedCleaningsProvider = StreamProvider<List<CleaningModel>>((ref) {
       .limit(20)
       .snapshots()
       .map((s) => s.docs.map(CleaningModel.fromDoc).toList());
+});
+
+// ===== 급여 설정 (config/salary) — 매니저가 근무자별 '청소 1건당 단가' 설정 =====
+/// 모든 인증 사용자가 읽을 수 있으나(규칙상 config 읽기 허용), 쓰기는 매니저만.
+/// 문서가 없으면 빈 설정(SalaryConfigModel())으로 간주.
+final salaryConfigProvider = StreamProvider<SalaryConfigModel>((ref) {
+  final user = ref.watch(firebaseUserProvider).value;
+  if (user == null) return Stream.value(const SalaryConfigModel());
+  return ref
+      .watch(firestoreProvider)
+      .collection('config')
+      .doc('salary')
+      .snapshots()
+      .map((s) => s.exists ? SalaryConfigModel.fromDoc(s) : const SalaryConfigModel());
 });
 
 // ===== Cloud Functions Wrapper =====

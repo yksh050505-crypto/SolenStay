@@ -200,6 +200,51 @@ class AdminSettingsPage extends ConsumerWidget {
             ),
             SizedBox(height: 24),
 
+            // 급여 관리 — 근무자별 건당 단가 설정 + 월별 월급 자동 계산
+            const _SectionHeader(title: '급여 관리'),
+            SizedBox(height: 10),
+            Material(
+              color: AppColors.ok.withOpacity(0.06),
+              borderRadius: BorderRadius.circular(12),
+              child: InkWell(
+                onTap: () => context.push('/admin/salary'),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.ok.withOpacity(0.25)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36,
+                        height: 36,
+                        decoration: BoxDecoration(
+                          color: AppColors.ok.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(Icons.payments_outlined, color: AppColors.ok, size: 20),
+                      ),
+                      SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text('근무자 급여 설정 / 월급 계산', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 14)),
+                            SizedBox(height: 2),
+                            Text('근무자별 건당 단가 설정 + 월별 월급 자동 계산', style: TextStyle(color: context.brand.muted, fontSize: 11)),
+                          ],
+                        ),
+                      ),
+                      Icon(Icons.chevron_right, color: context.brand.dim, size: 20),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            SizedBox(height: 24),
+
             // 호점 동기화 (iCal) — 각 호점의 Google Calendar iCal 주소 연결
             const _SectionHeader(title: '호점 동기화 (iCal)'),
             SizedBox(height: 10),

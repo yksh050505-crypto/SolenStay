@@ -11,6 +11,7 @@ import '../../data/models.dart';
 import '../../data/services.dart';
 import '../cleaning_detail/cleaning_detail_page.dart' show cleaningProvider;
 import '../shared/bottom_nav.dart';
+import '../shared/notification_bell.dart';
 
 /// ⑤ 캘린더 (Airbnb 스타일 — 셀 그리드 + 별도 overlay 레이어)
 class CalendarPage extends ConsumerStatefulWidget {
@@ -94,6 +95,12 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
       appBar: AppBar(
         title: Text('일정'),
         automaticallyImplyLeading: false,
+        actions: const [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: NotificationBellButton(),
+          ),
+        ],
       ),
       bottomNavigationBar: const AppBottomNav(active: BottomTab.calendar),
       body: reservationsAsync.when(
@@ -616,7 +623,6 @@ class _WeekRow extends StatelessWidget {
                 final today = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
                 final coDay = DateTime(r.reservation.checkOut.year, r.reservation.checkOut.month, r.reservation.checkOut.day);
                 final isPast = coDay.isBefore(today);
-                if (isPast) return const SizedBox.shrink();
                 // 한 주의 시작 셀(일요일, col 0)에 위치한 pill — 이전 주에서 이어진 경우라도
                 // 텍스트를 다시 표시해서 끝나는 셀에서 잘리는 경우를 보완.
                 final isWeekStart = r.startCol == 0 && !r.isStartCap;
@@ -628,14 +634,17 @@ class _WeekRow extends StatelessWidget {
                   bottom: bottom,
                   height: pillH,
                   child: IgnorePointer(
-                    child: _Pill(
-                      reservation: r.reservation,
-                      isStartCap: r.isStartCap,
-                      isEndCap: r.isEndCap,
-                      isUnassigned: isUnassigned,
-                      isWeekStart: isWeekStart,
-                      labelText: segLabel,
-                      showChip: r.isStartCap,
+                    child: Opacity(
+                      opacity: isPast ? 0.5 : 1.0,
+                      child: _Pill(
+                        reservation: r.reservation,
+                        isStartCap: r.isStartCap,
+                        isEndCap: r.isEndCap,
+                        isUnassigned: isUnassigned,
+                        isWeekStart: isWeekStart,
+                        labelText: segLabel,
+                        showChip: r.isStartCap,
+                      ),
                     ),
                   ),
                 );
@@ -806,13 +815,11 @@ Map<String, String> _computeReflowLabels({
 
   final monthStart = DateTime(month.year, month.month, 1);
   final monthEnd = DateTime(month.year, month.month + 1, 0);
-  final todayD = d0(today);
   final out = <String, String>{};
 
   for (final r in reservations) {
     final inDay = d0(r.checkIn);
     final outDay = d0(r.checkOut);
-    if (outDay.isBefore(todayD)) continue; // 과거 예약은 pill 자체가 숨겨짐
     final name = '${r.guestName}(${r.guestCount}명)';
     final cleaning = cleaningByResId[r.id];
     final isUnassigned = cleaning == null || cleaning.isUnassigned;
@@ -1056,6 +1063,8 @@ class _BottomList extends StatelessWidget {
   }
 
   List<Widget> _buildUpcomingReservationCards() {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     final selectedIds = selectedReservations.map((r) => r.id).toSet();
     final shown = <String>{};
     final cards = <Widget>[];
@@ -1063,6 +1072,9 @@ class _BottomList extends StatelessWidget {
     for (final c in cleanings) {
       if (c.reservationId.isEmpty) continue;
       if (selectedIds.contains(c.reservationId)) continue;
+      // "다가오는 청소" 목록은 미래만 — 과거 청소는 데이터 윈도우 확장으로 들어오지만 제외
+      final cDay = DateTime(c.scheduledDate.year, c.scheduledDate.month, c.scheduledDate.day);
+      if (cDay.isBefore(today)) continue;
       if (shown.contains(c.reservationId)) continue;
       shown.add(c.reservationId);
 

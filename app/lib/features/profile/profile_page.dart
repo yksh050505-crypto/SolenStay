@@ -15,6 +15,7 @@ import '../../data/models.dart';
 import '../../data/services.dart';
 import '../../main.dart' show kPrefAutoLogin, kPrefThemeMode, themeModeProvider, themeModeToString;
 import '../shared/bottom_nav.dart';
+import '../shared/notification_bell.dart';
 import 'package:firebase_messaging/firebase_messaging.dart' show AuthorizationStatus;
 
 /// 알림 prefs 키 — 백엔드와 동일하게 유지
@@ -40,6 +41,12 @@ class ProfilePage extends ConsumerWidget {
       appBar: AppBar(
         title: Text(l.t('내정보', 'My Info')),
         automaticallyImplyLeading: false,
+        actions: const [
+          Padding(
+            padding: EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+            child: NotificationBellButton(),
+          ),
+        ],
       ),
       bottomNavigationBar: const AppBottomNav(active: BottomTab.profile),
       body: SafeArea(
@@ -99,6 +106,13 @@ class ProfilePage extends ConsumerWidget {
             ),
             // 자동 로그인 토글 (디바이스별 SharedPreferences에 저장)
             _AutoLoginToggle(l: l),
+            // 내 급여 (청소원·실장 — 매니저는 관리자 설정의 급여 관리 사용)
+            if (user != null && !user.isManager)
+              _menuItem(context,
+                emoji: '💰',
+                label: l.t('내 급여', 'My salary'),
+                onTap: () => context.push('/profile/my-salary'),
+              ),
             SizedBox(height: 14),
 
             // 알림 — 각 토글이 사용자 prefs(notificationPrefs.{key})에 저장됨

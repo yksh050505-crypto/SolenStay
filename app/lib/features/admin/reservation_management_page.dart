@@ -1,5 +1,6 @@
+import 'dart:ui' as ui;
+
 import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -79,6 +80,7 @@ class _ReservationManagementPageState extends ConsumerState<ReservationManagemen
                   onPrev: () => setState(() => _month = DateTime(_month.year, _month.month - 1)),
                   onNext: () => setState(() => _month = DateTime(_month.year, _month.month + 1)),
                 ),
+                _BranchLegend(branches: branches),
                 const _WeekdayRow(),
                 Expanded(
                   child: Padding(
@@ -144,6 +146,37 @@ class _MonthHeader extends StatelessWidget {
           ),
           IconButton(onPressed: onNext, icon: Icon(Icons.chevron_right, color: context.brand.text), iconSize: 22),
         ],
+      ),
+    );
+  }
+}
+
+class _BranchLegend extends StatelessWidget {
+  final List<BranchModel> branches;
+  const _BranchLegend({required this.branches});
+
+  @override
+  Widget build(BuildContext context) {
+    if (branches.isEmpty) return const SizedBox.shrink();
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 6),
+      child: Wrap(
+        spacing: 10,
+        runSpacing: 4,
+        children: branches.map((b) {
+          final color = AppColors.branchColor(b.id);
+          return Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 10, height: 10,
+                decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 4),
+              Text(b.name, style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: context.brand.muted)),
+            ],
+          );
+        }).toList(),
       ),
     );
   }
@@ -228,7 +261,7 @@ class _MonthGrid extends StatelessWidget {
         }
 
         // 2. 트랙 수에 맞는 필요 height 계산
-        const pillH = 22.0;
+        const pillH = 26.0;
         const pillVGap = 4.0;
         const pillBottomBase = 10.0;
         const topPadForDate = 30.0; // 날짜 숫자 + 여백
@@ -239,6 +272,19 @@ class _MonthGrid extends StatelessWidget {
         final equalRowH = constraints.maxHeight / weeks.length;
         final rowH = neededRowH > equalRowH ? neededRowH : equalRowH.clamp(80.0, 200.0);
 
+        // 4. _WeekRow와 동일한 셀 폭 계산 → 칸별 글자 reflow 미리 산출
+        const gap = 6.0;
+        final cellW = (constraints.maxWidth - 24 - gap * 6) / 7; // 좌우 패딩 12*2 제외
+        final reflowLabels = _computeReflowLabels(
+          reservations: reservations,
+          weeks: weeks,
+          month: month,
+          cellW: cellW,
+          gap: gap,
+          scaler: MediaQuery.textScalerOf(context),
+          today: DateTime.now(),
+        );
+
         return SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 12),
           child: Column(
@@ -247,6 +293,7 @@ class _MonthGrid extends StatelessWidget {
               month: month,
               reservations: reservations,
               rowHeight: rowH,
+              reflowLabels: reflowLabels,
               onPillTap: onPillTap,
               onDayTap: onDayTap,
             )).toList(),
@@ -262,6 +309,8 @@ class _WeekRow extends StatelessWidget {
   final DateTime month;
   final List<ReservationModel> reservations;
   final double rowHeight;
+  /// key: "${reservationId}|${weekStartIso}" → 이 주 구간에 표시할 라벨 글자 (reflow)
+  final Map<String, String> reflowLabels;
   final ValueChanged<ReservationModel> onPillTap;
   final ValueChanged<DateTime> onDayTap;
   const _WeekRow({
@@ -269,6 +318,7 @@ class _WeekRow extends StatelessWidget {
     required this.month,
     required this.reservations,
     required this.rowHeight,
+    required this.reflowLabels,
     required this.onPillTap,
     required this.onDayTap,
   });
@@ -373,7 +423,7 @@ class _WeekRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final pills = _layoutPills();
     final trackCount = pills.isEmpty ? 1 : pills.map((p) => p.track).fold<int>(0, (m, v) => v > m ? v : m) + 1;
-    const pillH = 22.0;
+    const pillH = 26.0;
     const pillVGap = 4.0;
     // pill 들은 셀 하단부터 위로 쌓기 → 날짜 숫자(좌상단)와 안 겹침
     const pillBottomBase = 10.0;
@@ -422,6 +472,8 @@ class _WeekRow extends StatelessWidget {
                 if (isPast) return const SizedBox.shrink();
                 // 한 주의 시작 셀(일요일) — 이전 주에서 이어진 경우라도 텍스트 재표시
                 final isWeekStart = r.startCol == 0 && !r.isStartCap;
+                final weekStart = DateTime(days.first.year, days.first.month, days.first.day);
+                final segLabel = reflowLabels['${r.reservation.id}|${weekStart.toIso8601String()}'] ?? '';
                 return Positioned(
                   left: left, width: width, bottom: bottom, height: pillH,
                   child: GestureDetector(
@@ -431,6 +483,8 @@ class _WeekRow extends StatelessWidget {
                       isStartCap: r.isStartCap,
                       isEndCap: r.isEndCap,
                       isWeekStart: isWeekStart,
+                      labelText: segLabel,
+                      showChip: r.isStartCap,
                     ),
                   ),
                 );
@@ -480,6 +534,15 @@ class _DayCard extends StatelessWidget {
     final today = DateTime.now();
     final isToday = day.year == today.year && day.month == today.month && day.day == today.day;
 
+    Color textColor;
+    if (isToday) {
+      textColor = AppColors.branch1;
+    } else if (isWeekend) {
+      textColor = AppColors.danger;
+    } else {
+      textColor = context.brand.text;
+    }
+
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -496,13 +559,13 @@ class _DayCard extends StatelessWidget {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
           child: Align(
-            alignment: Alignment.topLeft,
+            alignment: Alignment.topRight,
             child: Text(
               '${day.day}',
               style: TextStyle(
-                fontSize: 12,
+                fontSize: 13,
                 fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
-                color: isToday ? AppColors.branch1 : (isWeekend ? AppColors.danger : context.brand.text),
+                color: textColor,
               ),
             ),
           ),
@@ -512,6 +575,116 @@ class _DayCard extends StatelessWidget {
   }
 }
 
+// ═══════════════════════════════════════════════════════════════════
+// Pill 라벨 reflow — 긴 이름이 한 칸에서 잘리면 이어지는 칸으로 "이어서" 표시
+// ═══════════════════════════════════════════════════════════════════
+
+const TextStyle _pillNameStyle = TextStyle(
+    fontSize: 12, color: Colors.white, fontWeight: FontWeight.w700, letterSpacing: -0.2);
+const TextStyle _pillChipStyle = TextStyle(
+    fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: -0.3, height: 1.1);
+
+double _measureTextWidth(String text, TextStyle style, TextScaler scaler) {
+  final tp = TextPainter(
+    text: TextSpan(text: text, style: style),
+    textDirection: ui.TextDirection.ltr,
+    textScaler: scaler,
+    maxLines: 1,
+  )..layout();
+  return tp.width;
+}
+
+/// text[from:] 중 maxWidth 안에 들어가는 최대 글자 수
+int _charsThatFit(String text, int from, double maxWidth, TextScaler scaler) {
+  if (from >= text.length || maxWidth <= 0) return 0;
+  int lo = 0, hi = text.length - from, best = 0;
+  while (lo <= hi) {
+    final mid = (lo + hi) ~/ 2;
+    final w = _measureTextWidth(text.substring(from, from + mid), _pillNameStyle, scaler);
+    if (w <= maxWidth) {
+      best = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return best;
+}
+
+/// 각 예약 라벨을 주(week) 구간별로 잘라 "이어 흐르게" 한 맵.
+/// key: "${reservationId}|${weekStartIso}" → 그 구간에 표시할 글자(앞 구간에서 이어짐).
+Map<String, String> _computeReflowLabels({
+  required List<ReservationModel> reservations,
+  required List<List<DateTime>> weeks,
+  required DateTime month,
+  required double cellW,
+  required double gap,
+  required TextScaler scaler,
+  required DateTime today,
+}) {
+  DateTime d0(DateTime d) => DateTime(d.year, d.month, d.day);
+  DateTime maxD(DateTime a, DateTime b) => a.isAfter(b) ? a : b;
+  DateTime minD(DateTime a, DateTime b) => a.isBefore(b) ? a : b;
+  bool same(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  final monthStart = DateTime(month.year, month.month, 1);
+  final monthEnd = DateTime(month.year, month.month + 1, 0);
+  final todayD = d0(today);
+  final out = <String, String>{};
+
+  for (final r in reservations) {
+    final inDay = d0(r.checkIn);
+    final outDay = d0(r.checkOut);
+    if (outDay.isBefore(todayD)) continue; // 과거 예약은 pill 자체가 숨겨짐
+    final name = '${r.guestName}(${r.guestCount}명)';
+    int offset = 0;
+    for (final week in weeks) {
+      final weekStart = d0(week.first);
+      final weekEnd = d0(week.last);
+      final visStart = maxD(weekStart, monthStart);
+      final visEnd = minD(weekEnd, monthEnd);
+      if (outDay.isBefore(visStart) || inDay.isAfter(visEnd)) continue;
+      final clampedIn = maxD(inDay, visStart);
+      final clampedOut = minD(outDay, visEnd);
+      final isStartCap = same(clampedIn, inDay);
+      final isEndCap = same(clampedOut, outDay);
+      final isMonthClippedStart = !isStartCap && inDay.isBefore(monthStart);
+      final isMonthClippedEnd = !isEndCap && outDay.isAfter(monthEnd);
+      final startCol = clampedIn.difference(weekStart).inDays;
+      final endCol = clampedOut.difference(weekStart).inDays;
+      // _WeekRow.build의 left/right 계산과 동일하게 구간 폭 산출
+      final left = (isStartCap || isMonthClippedStart)
+          ? startCol * (cellW + gap) + cellW / 2
+          : 0.0;
+      final right = (isEndCap || isMonthClippedEnd)
+          ? endCol * (cellW + gap) + cellW / 2
+          : 7 * (cellW + gap) - gap;
+      final segW = right - left;
+      // 시작 구간(호점 칩 표시)에서는 칩 폭만큼 이름 공간이 줄어듦
+      double chipW = 0;
+      if (isStartCap) {
+        chipW = _measureTextWidth(AppColors.branchShortLabel(r.branchId), _pillChipStyle, scaler) + 8 + 4;
+      }
+      final padLR = 6 + (isEndCap ? 8.0 : 4.0);
+      final avail = segW - padLR - chipW;
+      final key = '${r.id}|${weekStart.toIso8601String()}';
+      if (offset >= name.length) {
+        out[key] = '';
+        continue;
+      }
+      final count = _charsThatFit(name, offset, avail, scaler);
+      out[key] = name.substring(offset, offset + count);
+      offset += count;
+    }
+  }
+  return out;
+}
+
+// ═══════════════════════════════════════════════════════════════════
+// Pill (overlay bar)
+// ═══════════════════════════════════════════════════════════════════
+
 class _Pill extends StatelessWidget {
   final ReservationModel reservation;
   final bool isStartCap;
@@ -519,7 +692,18 @@ class _Pill extends StatelessWidget {
   /// 한 주의 시작 셀(일요일)에 위치한 pill이면 true.
   /// isStartCap이 false라도 (이전 주에서 이어진 pill) 다음 주 첫 셀에 텍스트 표시.
   final bool isWeekStart;
-  const _Pill({required this.reservation, required this.isStartCap, required this.isEndCap, this.isWeekStart = false});
+  /// 이 구간에 표시할 라벨 글자(앞 구간에서 잘린 다음 글자부터 이어짐). 빈 문자열이면 글자 없음.
+  final String labelText;
+  /// 호점 칩을 표시할지 — 실제 체크인 구간에서만 true.
+  final bool showChip;
+  const _Pill({
+    required this.reservation,
+    required this.isStartCap,
+    required this.isEndCap,
+    this.isWeekStart = false,
+    this.labelText = '',
+    this.showChip = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -530,26 +714,46 @@ class _Pill extends StatelessWidget {
       topRight: Radius.circular(isEndCap ? 11 : 0),
       bottomRight: Radius.circular(isEndCap ? 11 : 0),
     );
-    final borderSide = BorderSide(color: Colors.black.withOpacity(0.25), width: 1);
-    return ClipRRect(
-      borderRadius: radius,
-      child: Container(
-        decoration: BoxDecoration(
-          color: color,
-          borderRadius: radius,
-          border: Border(
-            top: borderSide,
-            bottom: borderSide,
-            left: isStartCap ? borderSide : BorderSide.none,
-            right: isEndCap ? borderSide : BorderSide.none,
-          ),
+    final borderColor = Colors.black.withOpacity(0.22);
+    final borderSide = BorderSide(color: borderColor, width: 1);
+    // 입체감: 그라데이션(위 밝게·아래 어둡게) + 살짝 뜬 그림자.
+    // 주의: 테두리는 반드시 "균일 색"이어야 함 (둥근 모서리+비균일 테두리는 paint 예외 → 글자 사라짐).
+    final topColor = Color.lerp(color, Colors.white, 0.18)!;
+    final bottomColor = Color.lerp(color, Colors.black, 0.13)!;
+
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [topColor, color, bottomColor],
+          stops: const [0.0, 0.5, 1.0],
         ),
-        padding: EdgeInsets.only(left: isStartCap ? 8 : 0, right: isEndCap ? 8 : 0),
-        alignment: Alignment.centerLeft,
-        child: isStartCap
-            ? Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+        borderRadius: radius,
+        border: Border(
+          top: borderSide,
+          bottom: borderSide,
+          left: isStartCap ? borderSide : BorderSide.none,
+          right: isEndCap ? borderSide : BorderSide.none,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.20),
+            blurRadius: 2.5,
+            offset: const Offset(0, 1.4),
+          ),
+        ],
+      ),
+      padding: EdgeInsets.only(
+        left: 6,
+        right: isEndCap ? 8 : 4,
+      ),
+      alignment: Alignment.centerLeft,
+      child: (showChip || labelText.isNotEmpty)
+          ? Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                if (showChip) ...[
                   // 호점 라벨 (1호/2호/3호)
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
@@ -569,17 +773,28 @@ class _Pill extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(width: 4),
+                ],
+                if (labelText.isNotEmpty)
                   Flexible(
                     child: Text(
-                      '${reservation.guestName}(${reservation.guestCount}명)',
-                      style: const TextStyle(fontSize: 10, color: Colors.white, fontWeight: FontWeight.w700, letterSpacing: -0.2),
-                      maxLines: 1, overflow: TextOverflow.ellipsis, softWrap: false,
+                      labelText,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                        letterSpacing: -0.2,
+                        shadows: [
+                          Shadow(color: Color(0x66000000), blurRadius: 1.5, offset: Offset(0, 0.5)),
+                        ],
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
+                      softWrap: false,
                     ),
                   ),
-                ],
-              )
-            : null,
-      ),
+              ],
+            )
+          : null,
     );
   }
 }

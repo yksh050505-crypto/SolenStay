@@ -204,6 +204,32 @@ class CleaningModel {
   }
 }
 
+/// 급여 설정 (Firestore: config/salary)
+/// 근무자(uid)별 '청소 1건당 단가'(원). 매니저가 관리자 설정에서 설정한다.
+/// 월급 = 해당 월 완료 청소 건수 × ratePerCleaning[uid].
+class SalaryConfigModel {
+  /// uid → 청소 1건당 단가(원)
+  final Map<String, int> ratePerCleaning;
+  final DateTime? updatedAt;
+
+  const SalaryConfigModel({
+    this.ratePerCleaning = const {},
+    this.updatedAt,
+  });
+
+  /// 해당 근무자의 건당 단가 (미설정이면 0).
+  int rateOf(String uid) => ratePerCleaning[uid] ?? 0;
+
+  factory SalaryConfigModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
+    final d = doc.data() ?? const {};
+    final raw = (d['ratePerCleaning'] as Map<String, dynamic>?) ?? const {};
+    return SalaryConfigModel(
+      ratePerCleaning: raw.map((k, v) => MapEntry(k, (v as num?)?.toInt() ?? 0)),
+      updatedAt: (d['updatedAt'] as Timestamp?)?.toDate(),
+    );
+  }
+}
+
 /// 앱 버전 (Firestore: config/appVersion)
 /// 매니저가 새 APK 업로드 후 등록 → 모든 클라이언트가 시작 시 비교 → 다이얼로그
 class AppVersionModel {

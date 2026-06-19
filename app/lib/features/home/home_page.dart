@@ -8,8 +8,8 @@ import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/services.dart';
 import '../cleaning_detail/cleaning_detail_page.dart' show reservationProvider;
-import '../notifications/notifications_page.dart' show unreadNotificationCountProvider;
 import '../shared/bottom_nav.dart';
+import '../shared/notification_bell.dart';
 import '../update/update_checker.dart';
 
 /// ② 다가오는 청소 (홈) — 호점별로 가장 가까운 체크아웃 청소 표시
@@ -55,7 +55,7 @@ class HomePage extends ConsumerWidget {
                     ),
                   ),
                   // 알림 버튼 (모든 사용자) + 미읽 뱃지
-                  _NotificationButton(),
+                  const NotificationBellButton(),
                 ],
               ),
               SizedBox(height: 18),
@@ -98,20 +98,10 @@ class HomePage extends ConsumerWidget {
                     final allCleanings = cleaningsAsync.valueOrNull ?? const <CleaningModel>[];
 
                     if (isManager) {
-                      // 매니저: 호점별 1건씩 (기존 동작 유지)
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          const _SectionTitle('다가오는 청소'),
-                          SizedBox(height: 10),
-                          Expanded(
-                            child: _BranchList(
-                              branches: loadedBranches,
-                              cleanings: allCleanings,
-                              myUid: user?.uid,
-                            ),
-                          ),
-                        ],
+                      // 매니저: 전체 운영 관점 — 이번 달 요약 + 호점별 현황 + 미배정 처리
+                      return _ManagerHomeView(
+                        branches: loadedBranches,
+                        allCleanings: allCleanings,
                       );
                     }
 
@@ -185,6 +175,18 @@ class _CleanerHomeView extends ConsumerWidget {
           }).toList()
             ..sort((a, b) => a.scheduledDate.compareTo(b.scheduledDate)));
 
+    // 완료한 작업 = 내 배정 && 완료, 최신순 (완료시각 → 없으면 청소일 기준). 최근 30건.
+    final completedMine = uid == null
+        ? const <CleaningModel>[]
+        : (allCleanings.where((c) => c.assigneeUid == uid && c.isCompleted).toList()
+              ..sort((a, b) {
+                final ad = a.completedAt ?? a.scheduledDate;
+                final bd = b.completedAt ?? b.scheduledDate;
+                return bd.compareTo(ad);
+              }))
+            .take(30)
+            .toList();
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -198,24 +200,105 @@ class _CleanerHomeView extends ConsumerWidget {
                 child: _CleaningTaskCard(item: _TaskItem(cleaning: c, incoming: incomingOf(c)), branches: branches),
               )),
         SizedBox(height: 22),
-        const _SectionTitle('다가오는 청소'),
-        SizedBox(height: 10),
+        // 다가오는 청소 + 완료한 작업 — 함께 스크롤
         Expanded(
-          child: upcomingMine.isEmpty
-              ? _EmptyAssignmentCard(text: '배정된 청소가 없습니다')
-              : ListView.separated(
-                  padding: EdgeInsets.zero,
-                  itemCount: upcomingMine.length,
-                  separatorBuilder: (_, __) => SizedBox(height: 8),
-                  itemBuilder: (_, i) {
-                    final c = upcomingMine[i];
-                    return _CleaningTaskCard(
-                      item: _TaskItem(cleaning: c, incoming: incomingOf(c)),
-                      branches: branches,
-                    );
-                  },
-                ),
+          child: ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              const _SectionTitle('다가오는 청소'),
+              SizedBox(height: 10),
+              if (upcomingMine.isEmpty)
+                _EmptyAssignmentCard(text: '배정된 청소가 없습니다')
+              else
+                ...upcomingMine.map((c) => Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _CleaningTaskCard(
+                        item: _TaskItem(cleaning: c, incoming: incomingOf(c)),
+                        branches: branches,
+                      ),
+                    )),
+              SizedBox(height: 22),
+              // 완료한 작업 — 기본 접힘(접이식). 탭하면 펼쳐짐.
+              _CompletedTasksSection(
+                items: completedMine
+                    .map((c) => _TaskItem(cleaning: c, incoming: incomingOf(c)))
+                    .toList(),
+                branches: branches,
+              ),
+            ],
+          ),
         ),
+      ],
+    );
+  }
+}
+
+/// 완료한 작업 — 접이식 섹션 (기본 접힘). 헤더 탭으로 펼침/접힘.
+class _CompletedTasksSection extends StatefulWidget {
+  final List<_TaskItem> items;
+  final List<BranchModel> branches;
+  const _CompletedTasksSection({required this.items, required this.branches});
+
+  @override
+  State<_CompletedTasksSection> createState() => _CompletedTasksSectionState();
+}
+
+class _CompletedTasksSectionState extends State<_CompletedTasksSection> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final count = widget.items.length;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        // 헤더 (탭하면 펼침/접힘)
+        Material(
+          color: context.brand.panel,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: () => setState(() => _expanded = !_expanded),
+            borderRadius: BorderRadius.circular(12),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: context.brand.line),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.check_circle_outline, size: 18, color: AppColors.ok),
+                  SizedBox(width: 8),
+                  Text('완료한 작업', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  SizedBox(width: 6),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                    decoration: BoxDecoration(
+                      color: AppColors.ok.withOpacity(0.12),
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                    child: Text(
+                      '$count',
+                      style: TextStyle(color: AppColors.ok, fontSize: 10, fontWeight: FontWeight.w700),
+                    ),
+                  ),
+                  const Spacer(),
+                  Icon(_expanded ? Icons.expand_less : Icons.expand_more, color: context.brand.muted),
+                ],
+              ),
+            ),
+          ),
+        ),
+        if (_expanded) ...[
+          SizedBox(height: 8),
+          if (widget.items.isEmpty)
+            _EmptyAssignmentCard(text: '완료한 작업이 없습니다')
+          else
+            ...widget.items.map((it) => Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: _CleaningTaskCard(item: it, branches: widget.branches),
+                )),
+        ],
       ],
     );
   }
@@ -486,97 +569,179 @@ class _CleaningTaskCard extends ConsumerWidget {
   }
 }
 
-/// 호점 목록 — 내가 담당(claim)한 청소만 호점별로 가장 가까운 1건씩 표시
-class _BranchList extends StatelessWidget {
+/// 매니저 홈 — 전체 운영 관점.
+/// ① 이번 달 요약(완료/전체/남음·미배정) ② 호점별 현황(가장 가까운 청소 1건씩)
+/// ③ 처리 필요 — 미배정 청소 목록(탭하면 상세에서 배정).
+class _ManagerHomeView extends ConsumerWidget {
   final List<BranchModel> branches;
-  final List<CleaningModel> cleanings; // 이미 scheduledDate 오름차순 정렬됨
-  final String? myUid;
-  const _BranchList({required this.branches, required this.cleanings, required this.myUid});
+  final List<CleaningModel> allCleanings;
+  const _ManagerHomeView({required this.branches, required this.allCleanings});
 
   @override
-  Widget build(BuildContext context) {
-    // 호점별로 가장 가까운 청소 1건씩 (배정 여부 무관).
-    // upcomingCleaningsProvider는 캘린더용으로 과거 7일도 포함하므로
-    // 홈 "다가오는 청소"에서는 오늘 이후 청소만 대상으로 한다.
+  Widget build(BuildContext context, WidgetRef ref) {
+    final reservations = ref.watch(upcomingReservationsProvider).valueOrNull ?? const <ReservationModel>[];
     final now = DateTime.now();
-    final todayStart = DateTime(now.year, now.month, now.day);
-    final Map<String, CleaningModel?> nearestByBranch = {};
-    for (final b in branches) {
-      nearestByBranch[b.id] = null;
-    }
-    for (final c in cleanings) {
+    final today = DateTime(now.year, now.month, now.day);
+    final monthStart = DateTime(now.year, now.month, 1);
+    final nextMonthStart = DateTime(now.year, now.month + 1, 1);
+
+    // 이번 달 청소 통계 (scheduledDate가 이번 달)
+    final monthCleanings = allCleanings.where((c) {
+      final d = c.scheduledDate;
+      return !d.isBefore(monthStart) && d.isBefore(nextMonthStart);
+    }).toList();
+    final monthTotal = monthCleanings.length;
+    final monthDone = monthCleanings.where((c) => c.isCompleted).length;
+    final monthUnassigned = monthCleanings.where((c) => c.isUnassigned).length;
+
+    // 호점별 가장 가까운(오늘 이후) 청소 1건
+    final sortedByDate = [...allCleanings]..sort((a, b) => a.scheduledDate.compareTo(b.scheduledDate));
+    final Map<String, CleaningModel?> nearestByBranch = {for (final b in branches) b.id: null};
+    for (final c in sortedByDate) {
       final d = DateTime(c.scheduledDate.year, c.scheduledDate.month, c.scheduledDate.day);
-      if (d.isBefore(todayStart)) continue;
+      if (d.isBefore(today)) continue;
       if (nearestByBranch.containsKey(c.branchId) && nearestByBranch[c.branchId] == null) {
         nearestByBranch[c.branchId] = c;
       }
     }
 
-    return ListView.separated(
+    // 처리 필요 — 미배정(오늘 이후) 가까운 순
+    final unassigned = sortedByDate.where((c) {
+      final d = DateTime(c.scheduledDate.year, c.scheduledDate.month, c.scheduledDate.day);
+      return c.isUnassigned && !d.isBefore(today);
+    }).toList();
+
+    // 청소일 이후 같은 호점에서 가장 가까운 입실 예약 매칭
+    ReservationModel? incomingOf(CleaningModel c) {
+      final cd = DateTime(c.scheduledDate.year, c.scheduledDate.month, c.scheduledDate.day);
+      ReservationModel? best;
+      for (final r in reservations) {
+        if (r.branchId != c.branchId) continue;
+        final inDay = DateTime(r.checkIn.year, r.checkIn.month, r.checkIn.day);
+        if (inDay.isBefore(cd)) continue;
+        if (best == null || r.checkIn.isBefore(best.checkIn)) best = r;
+      }
+      return best;
+    }
+
+    return ListView(
       padding: EdgeInsets.zero,
-      itemCount: branches.length,
-      separatorBuilder: (_, __) => SizedBox(height: 8),
-      itemBuilder: (_, i) {
-        final branch = branches[i];
-        final nearest = nearestByBranch[branch.id];
-        if (nearest == null) {
-          return _EmptyBranchCard(branch: branch);
-        }
-        return _TaskCard(cleaning: nearest, branch: branch);
-      },
+      children: [
+        // ① 이번 달 요약
+        _MonthSummaryCard(total: monthTotal, done: monthDone, unassigned: monthUnassigned),
+        const SizedBox(height: 22),
+
+        // ② 호점별 현황
+        const _SectionTitle('호점별 현황'),
+        const SizedBox(height: 10),
+        ...branches.map((b) {
+          final nearest = nearestByBranch[b.id];
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: nearest == null ? _EmptyBranchCard(branch: b) : _TaskCard(cleaning: nearest, branch: b),
+          );
+        }),
+        const SizedBox(height: 22),
+
+        // ③ 처리 필요 — 미배정 청소
+        _SectionTitle('처리 필요 — 미배정 ${unassigned.length}건'),
+        const SizedBox(height: 10),
+        if (unassigned.isEmpty)
+          _EmptyAssignmentCard(text: '처리할 미배정 청소가 없습니다')
+        else
+          ...unassigned.take(8).map((c) => Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: _CleaningTaskCard(item: _TaskItem(cleaning: c, incoming: incomingOf(c)), branches: branches),
+              )),
+        if (unassigned.length > 8) ...[
+          const SizedBox(height: 2),
+          Text(
+            '외 ${unassigned.length - 8}건 더 — 일정 탭에서 확인',
+            style: TextStyle(fontSize: 11, color: context.brand.dim),
+          ),
+        ],
+      ],
     );
   }
 }
 
-/// 미읽 알림 개수 뱃지가 표시되는 알림 버튼
-class _NotificationButton extends ConsumerWidget {
+/// 매니저 홈 — 이번 달 청소 요약 카드 (진행률 + 전체/완료/남음 + 미배정 칩)
+class _MonthSummaryCard extends StatelessWidget {
+  final int total;
+  final int done;
+  final int unassigned;
+  const _MonthSummaryCard({required this.total, required this.done, required this.unassigned});
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final unread = ref.watch(unreadNotificationCountProvider);
+  Widget build(BuildContext context) {
+    final remaining = total - done;
+    final progress = total == 0 ? 0.0 : done / total;
+    final monthLabel = DateFormat('M월', 'ko').format(DateTime.now());
+    final hasUnassigned = unassigned > 0;
 
     return Container(
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: context.brand.panel,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(color: context.brand.line),
       ),
-      child: Stack(
-        clipBehavior: Clip.none,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          IconButton(
-            icon: Icon(Icons.notifications_none_rounded, size: 22),
-            onPressed: () => context.push('/notifications'),
-            tooltip: '알림',
-            color: context.brand.text,
-          ),
-          if (unread > 0)
-            Positioned(
-              right: 4,
-              top: 4,
-              child: Container(
-                constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
-                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+          Row(
+            children: [
+              Text('$monthLabel 청소 현황', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 15)),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                 decoration: BoxDecoration(
-                  color: AppColors.danger,
+                  color: (hasUnassigned ? AppColors.warn : AppColors.ok).withOpacity(0.12),
                   borderRadius: BorderRadius.circular(999),
-                  border: Border.all(color: context.brand.panel, width: 1.5),
                 ),
-                alignment: Alignment.center,
                 child: Text(
-                  unread > 99 ? '99+' : '$unread',
+                  hasUnassigned ? '미배정 $unassigned건' : '미배정 없음',
                   style: TextStyle(
-                    color: Colors.white,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w800,
-                    height: 1.0,
+                    color: hasUnassigned ? AppColors.warn : AppColors.ok,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 8,
+              backgroundColor: context.brand.line,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.ok),
             ),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _stat(context, '$total', '전체', AppColors.branch1),
+              _stat(context, '$done', '완료', AppColors.ok),
+              _stat(context, '$remaining', '남음', remaining > 0 ? AppColors.warn : context.brand.dim),
+            ],
+          ),
         ],
       ),
     );
   }
+
+  Widget _stat(BuildContext context, String num, String label, Color color) => Expanded(
+        child: Column(
+          children: [
+            Text(num, style: TextStyle(fontSize: 22, fontWeight: FontWeight.w900, color: color)),
+            const SizedBox(height: 2),
+            Text(label, style: TextStyle(color: context.brand.muted, fontSize: 11, fontWeight: FontWeight.w600)),
+          ],
+        ),
+      );
 }
 
 class _SectionTitle extends StatelessWidget {

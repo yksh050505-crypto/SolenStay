@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/holidays.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/services.dart';
@@ -108,6 +109,7 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
         error: (e, _) => Center(child: Text('오류: $e')),
         data: (reservations) {
           final selectedDay = _selectedDay ?? DateTime.now();
+          final selectedHoliday = holidayName(selectedDay);
           final selectedReservations = _reservationsOnDay(reservations, selectedDay);
           final cleaningsList = cleaningsAsync.valueOrNull ?? const <CleaningModel>[];
           final cleaningByResId = <String, CleaningModel>{
@@ -235,6 +237,21 @@ class _CalendarPageState extends ConsumerState<CalendarPage> {
                                       DateFormat('M월 d일 (E)', 'ko').format(selectedDay),
                                       style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
                                     ),
+                                    if (selectedHoliday != null) ...[
+                                      const SizedBox(width: 8),
+                                      Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.danger.withOpacity(0.12),
+                                          borderRadius: BorderRadius.circular(999),
+                                        ),
+                                        child: Text(
+                                          selectedHoliday,
+                                          style: const TextStyle(
+                                              color: AppColors.danger, fontSize: 11, fontWeight: FontWeight.w700),
+                                        ),
+                                      ),
+                                    ],
                                     Spacer(),
                                     if (selectedReservations.isNotEmpty)
                                       Text('${selectedReservations.length}건 숙박',
@@ -717,11 +734,12 @@ class _DayCard extends StatelessWidget {
     final isToday = _sameDay(day, today);
     final isSelected = selectedDay != null && _sameDay(day, selectedDay!);
     final isWeekend = day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
+    final holiday = holidayName(day);
 
     Color textColor;
     if (isToday || isSelected) {
       textColor = AppColors.branch1;
-    } else if (isWeekend) {
+    } else if (isWeekend || holiday != null) {
       textColor = AppColors.danger;
     } else {
       textColor = context.brand.text;
@@ -741,17 +759,37 @@ class _DayCard extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
-          child: Align(
-            alignment: Alignment.topRight,
-            child: Text(
-              '${day.day}',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: (isToday || isSelected) ? FontWeight.w800 : FontWeight.w600,
-                color: textColor,
+          padding: const EdgeInsets.fromLTRB(6, 6, 6, 0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (holiday != null)
+                Expanded(
+                  child: Text(
+                    holiday,
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.danger,
+                      height: 1.15,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    softWrap: false,
+                  ),
+                )
+              else
+                const Spacer(),
+              const SizedBox(width: 2),
+              Text(
+                '${day.day}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: (isToday || isSelected) ? FontWeight.w800 : FontWeight.w600,
+                  color: textColor,
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),

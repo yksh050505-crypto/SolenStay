@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/l10n.dart';
 import '../../core/theme.dart';
+import '../../core/withholding.dart';
 import '../../data/models.dart';
 import '../../data/services.dart';
 
@@ -45,6 +46,7 @@ class _MySalaryPageState extends ConsumerState<MySalaryPage> {
     final branches = ref.watch(branchesProvider).valueOrNull ?? const <BranchModel>[];
     final uid = user?.uid;
     final rate = uid == null ? 0 : salary.rateOf(uid);
+    final showWithholding = withholdingAppliesTo(_month);
 
     return Scaffold(
       appBar: AppBar(
@@ -81,12 +83,19 @@ class _MySalaryPageState extends ConsumerState<MySalaryPage> {
                           ..sort((a, b) => a.scheduledDate.compareTo(b.scheduledDate));
                         final count = mine.length;
                         final total = count * rate;
+                        final w = Withholding.of(total);
 
                         return ListView(
                           padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
                           children: [
                             // 이번 달 월급 요약 카드
-                            _SummaryCard(count: count, rate: rate, total: total, l: l),
+                            _SummaryCard(
+                                count: count,
+                                rate: rate,
+                                total: total,
+                                w: w,
+                                showWithholding: showWithholding,
+                                l: l),
                             const SizedBox(height: 16),
                             // 완료 청소 목록
                             Text(
@@ -122,6 +131,14 @@ class _MySalaryPageState extends ConsumerState<MySalaryPage> {
                                   'Basis: completed cleanings scheduled in this month × per-cleaning rate'),
                               style: TextStyle(fontSize: 11, color: context.brand.dim, height: 1.4),
                             ),
+                            if (showWithholding) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                l.t('원천세 3.3%(사업소득) 공제 후 실지급액 · 2026년 7월 지급분부터 적용',
+                                    'Net of 3.3% withholding (business income), applied from July 2026'),
+                                style: TextStyle(fontSize: 11, color: context.brand.dim, height: 1.4),
+                              ),
+                            ],
                             if (rate <= 0) ...[
                               const SizedBox(height: 8),
                               Text(
@@ -204,8 +221,17 @@ class _SummaryCard extends StatelessWidget {
   final int count;
   final int rate;
   final int total;
+  final Withholding w;
+  final bool showWithholding;
   final L10n l;
-  const _SummaryCard({required this.count, required this.rate, required this.total, required this.l});
+  const _SummaryCard({
+    required this.count,
+    required this.rate,
+    required this.total,
+    required this.w,
+    required this.showWithholding,
+    required this.l,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -245,7 +271,7 @@ class _SummaryCard extends StatelessWidget {
             textBaseline: TextBaseline.alphabetic,
             children: [
               Text(
-                _won.format(total),
+                _won.format(showWithholding ? w.net : total),
                 style: const TextStyle(fontSize: 30, fontWeight: FontWeight.w900, color: AppColors.ok),
               ),
               const SizedBox(width: 4),
@@ -253,6 +279,15 @@ class _SummaryCard extends StatelessWidget {
                   style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700, color: AppColors.ok)),
             ],
           ),
+          if (showWithholding) ...[
+            const SizedBox(height: 12),
+            _BreakdownRow(label: l.t('총지급액', 'Gross'), value: _won.format(w.gross), l: l),
+            const SizedBox(height: 4),
+            _BreakdownRow(label: l.t('원천세 (3.3%)', 'Withholding (3.3%)'), value: '-${_won.format(w.tax)}', l: l),
+            const SizedBox(height: 4),
+            _BreakdownRow(
+                label: l.t('실지급액', 'Net pay'), value: _won.format(w.net), l: l, emphasize: true),
+          ],
           const SizedBox(height: 6),
           Text(
             '${l.t('완료', 'Completed')} $count${l.t('건', '')}  ·  ${l.t('건당', 'per')} ${rate > 0 ? '${_won.format(rate)}${l.t('원', ' KRW')}' : l.t('미설정', 'not set')}',
@@ -260,6 +295,27 @@ class _SummaryCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+class _BreakdownRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final L10n l;
+  final bool emphasize;
+  const _BreakdownRow({required this.label, required this.value, required this.l, this.emphasize = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final color = emphasize ? AppColors.ok : context.brand.muted;
+    final weight = emphasize ? FontWeight.w800 : FontWeight.w600;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: TextStyle(fontSize: 13, color: color, fontWeight: weight)),
+        Text('$value${l.t('원', ' KRW')}', style: TextStyle(fontSize: 13, color: color, fontWeight: weight)),
+      ],
     );
   }
 }

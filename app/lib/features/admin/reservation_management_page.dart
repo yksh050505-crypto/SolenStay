@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/holidays.dart';
 import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/services.dart';
@@ -269,8 +270,10 @@ class _MonthGrid extends StatelessWidget {
         final neededRowH = pillBottomBase + tracksTotalH + topPadForDate;
 
         // 3. 화면 균등 분배 후보 vs 필요 height → 큰 쪽 채택
+        // 예약이 적은 달에 칸이 과하게 커지지 않도록 상한을 낮춤(일정 탭 캘린더와 유사).
+        // 예약이 많아 neededRowH가 더 크면 그 값을 그대로 사용해 막대가 다 보이게 한다.
         final equalRowH = constraints.maxHeight / weeks.length;
-        final rowH = neededRowH > equalRowH ? neededRowH : equalRowH.clamp(80.0, 200.0);
+        final rowH = neededRowH > equalRowH ? neededRowH : equalRowH.clamp(78.0, 92.0);
 
         // 4. _WeekRow와 동일한 셀 폭 계산 → 칸별 글자 reflow 미리 산출
         const gap = 6.0;
@@ -533,11 +536,12 @@ class _DayCard extends StatelessWidget {
     final isWeekend = day.weekday == DateTime.saturday || day.weekday == DateTime.sunday;
     final today = DateTime.now();
     final isToday = day.year == today.year && day.month == today.month && day.day == today.day;
+    final holiday = holidayName(day);
 
     Color textColor;
     if (isToday) {
       textColor = AppColors.branch1;
-    } else if (isWeekend) {
+    } else if (isWeekend || holiday != null) {
       textColor = AppColors.danger;
     } else {
       textColor = context.brand.text;
@@ -557,17 +561,37 @@ class _DayCard extends StatelessWidget {
           ),
         ),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
-          child: Align(
-            alignment: Alignment.topRight,
-            child: Text(
-              '${day.day}',
-              style: TextStyle(
-                fontSize: 13,
-                fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
-                color: textColor,
+          padding: const EdgeInsets.fromLTRB(6, 6, 6, 0),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (holiday != null)
+                Expanded(
+                  child: Text(
+                    holiday,
+                    style: const TextStyle(
+                      fontSize: 9,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.danger,
+                      height: 1.15,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.clip,
+                    softWrap: false,
+                  ),
+                )
+              else
+                const Spacer(),
+              const SizedBox(width: 2),
+              Text(
+                '${day.day}',
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: isToday ? FontWeight.w800 : FontWeight.w600,
+                  color: textColor,
+                ),
               ),
-            ),
+            ],
           ),
         ),
       ),

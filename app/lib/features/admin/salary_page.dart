@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../core/theme.dart';
+import '../../core/withholding.dart';
 import '../../data/models.dart';
 import '../../data/services.dart';
 import '../manager/manager_dashboard_page.dart' show allUsersProvider;
@@ -56,6 +57,7 @@ class _SalaryPageState extends ConsumerState<SalaryPage> {
 
     final usersAsync = ref.watch(allUsersProvider);
     final salaryAsync = ref.watch(salaryConfigProvider);
+    final showWithholding = withholdingAppliesTo(_month);
 
     return Scaffold(
       appBar: AppBar(
@@ -138,6 +140,9 @@ class _SalaryPageState extends ConsumerState<SalaryPage> {
 
                       final totalCount = rows.fold<int>(0, (s, r) => s + r.count);
                       final totalPay = rows.fold<int>(0, (s, r) => s + r.count * r.rate);
+                      final totalTax =
+                          rows.fold<int>(0, (s, r) => s + Withholding.of(r.count * r.rate).tax);
+                      final totalNet = totalPay - totalTax;
 
                       if (rows.isEmpty) {
                         return ListView(
@@ -154,14 +159,29 @@ class _SalaryPageState extends ConsumerState<SalaryPage> {
                           ...rows.map((r) => _WorkerCard(
                                 row: r,
                                 onSetRate: () => _showRateDialog(r, salary),
+                                showWithholding: showWithholding,
                               )),
                           const SizedBox(height: 8),
-                          _TotalCard(totalCount: totalCount, totalPay: totalPay),
+                          _TotalCard(
+                            totalCount: totalCount,
+                            totalPay: totalPay,
+                            totalTax: totalTax,
+                            totalNet: totalNet,
+                            showWithholding: showWithholding,
+                          ),
                           const SizedBox(height: 12),
                           Text(
                             '기준: 청소 예정일이 해당 월에 속한 완료 건 × 건당 단가',
                             style: TextStyle(fontSize: 11, color: context.brand.dim, height: 1.4),
                           ),
+                          if (showWithholding)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                '원천세 3.3%(사업소득) 공제 후 실지급액 · 2026년 7월 지급분부터 적용',
+                                style: TextStyle(fontSize: 11, color: context.brand.dim, height: 1.4),
+                              ),
+                            ),
                         ],
                       );
                     },
@@ -329,13 +349,18 @@ class _MonthHeader extends StatelessWidget {
 class _WorkerCard extends StatelessWidget {
   final _WorkerRow row;
   final VoidCallback onSetRate;
-  const _WorkerCard({required this.row, required this.onSetRate});
+  final bool showWithholding;
+  const _WorkerCard({required this.row, required this.onSetRate, this.showWithholding = false});
 
   @override
   Widget build(BuildContext context) {
     final roleLabel = row.unknown ? '미등록' : (row.isChief ? '실장' : '청소원');
     final roleColor = row.unknown ? context.brand.dim : (row.isChief ? AppColors.warn : AppColors.branch1);
     final noRate = row.rate <= 0;
+    final applyWithholding = showWithholding && row.pay > 0;
+    final wh = applyWithholding ? Withholding.of(row.pay) : null;
+    final payLabel = applyWithholding ? '실지급액' : '월급';
+    final payValue = applyWithholding ? wh!.net : row.pay;
 
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
@@ -405,14 +430,14 @@ class _WorkerCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text('월급', style: TextStyle(fontSize: 11, color: context.brand.muted)),
+                    Text(payLabel, style: TextStyle(fontSize: 11, color: context.brand.muted)),
                     const SizedBox(height: 2),
                     Text(
-                      '${_won.format(row.pay)}원',
+                      '${_won.format(payValue)}원',
                       style: TextStyle(
                         fontSize: 16,
                         fontWeight: FontWeight.w800,
-                        color: row.pay > 0 ? AppColors.ok : context.brand.dim,
+                        color: payValue > 0 ? AppColors.ok : context.brand.dim,
                       ),
                     ),
                   ],
@@ -420,6 +445,13 @@ class _WorkerCard extends StatelessWidget {
               ),
             ],
           ),
+          if (wh != null) ...[
+            const SizedBox(height: 8),
+            Text(
+              '총지급 ${_won.format(wh.gross)}원 · 원천세 -${_won.format(wh.tax)}원',
+              style: TextStyle(fontSize: 11, color: context.brand.dim),
+            ),
+          ],
         ],
       ),
     );
@@ -447,7 +479,16 @@ class _WorkerCard extends StatelessWidget {
 class _TotalCard extends StatelessWidget {
   final int totalCount;
   final int totalPay;
-  const _TotalCard({required this.totalCount, required this.totalPay});
+  final int totalTax;
+  final int totalNet;
+  final bool showWithholding;
+  const _TotalCard({
+    required this.totalCount,
+    required this.totalPay,
+    this.totalTax = 0,
+    this.totalNet = 0,
+    this.showWithholding = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -458,37 +499,110 @@ class _TotalCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(12),
         border: Border.all(color: AppColors.ok.withOpacity(0.3)),
       ),
-      child: Row(
-        children: [
-          Container(
-            width: 38,
-            height: 38,
-            decoration: BoxDecoration(
-              color: AppColors.ok.withOpacity(0.15),
-              borderRadius: BorderRadius.circular(10),
+      child: showWithholding ? _buildWithholding(context) : _buildSimple(context),
+    );
+  }
+
+  Widget _buildSimple(BuildContext context) {
+    return Row(
+      children: [
+        Container(
+          width: 38,
+          height: 38,
+          decoration: BoxDecoration(
+            color: AppColors.ok.withOpacity(0.15),
+            borderRadius: BorderRadius.circular(10),
+          ),
+          child: const Icon(Icons.summarize_outlined, color: AppColors.ok, size: 20),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('전체 월급 합계', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+              const SizedBox(height: 2),
+              Text(
+                '총 완료 $totalCount건',
+                style: TextStyle(fontSize: 11, color: context.brand.muted),
+              ),
+            ],
+          ),
+        ),
+        Text(
+          '${_won.format(totalPay)}원',
+          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.ok),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWithholding(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: AppColors.ok.withOpacity(0.15),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: const Icon(Icons.summarize_outlined, color: AppColors.ok, size: 20),
             ),
-            child: const Icon(Icons.summarize_outlined, color: AppColors.ok, size: 20),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('전체 월급 합계', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
-                const SizedBox(height: 2),
-                Text(
-                  '총 완료 $totalCount건',
-                  style: TextStyle(fontSize: 11, color: context.brand.muted),
-                ),
-              ],
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('전체 급여 합계', style: TextStyle(fontWeight: FontWeight.w700, fontSize: 13)),
+                  const SizedBox(height: 2),
+                  Text(
+                    '총 완료 $totalCount건',
+                    style: TextStyle(fontSize: 11, color: context.brand.muted),
+                  ),
+                ],
+              ),
             ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        _totalLine(context, '총지급액 합계', '${_won.format(totalPay)}원',
+            color: context.brand.text, strong: false),
+        const SizedBox(height: 6),
+        _totalLine(context, '원천세 합계', '-${_won.format(totalTax)}원',
+            color: context.brand.muted, strong: false),
+        const SizedBox(height: 6),
+        _totalLine(context, '실지급액 합계', '${_won.format(totalNet)}원',
+            color: AppColors.ok, strong: true),
+      ],
+    );
+  }
+
+  Widget _totalLine(BuildContext context, String label, String value,
+      {required Color color, required bool strong}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: strong ? 13 : 12,
+            fontWeight: strong ? FontWeight.w800 : FontWeight.w600,
+            color: strong ? color : context.brand.muted,
           ),
-          Text(
-            '${_won.format(totalPay)}원',
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w900, color: AppColors.ok),
+        ),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: strong ? 18 : 13,
+            fontWeight: strong ? FontWeight.w900 : FontWeight.w700,
+            color: color,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

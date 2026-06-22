@@ -1,7 +1,7 @@
 name: solenstay
 description: SolenStay - 1·2·3호점 예약·청소 관리 PWA
 publish_to: 'none'
-version: 0.3.0+8
+version: 0.4.0+9
 
 environment:
   sdk: '>=3.4.0 <4.0.0'

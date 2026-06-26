@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../data/models.dart';
 import '../../data/services.dart';
 import '../shared/bottom_nav.dart';
+import 'amenity_calc.dart';
 
 /// 단건 청소 Provider
 final cleaningProvider = StreamProvider.family<CleaningModel?, String>((ref, id) {
@@ -128,24 +129,11 @@ class _CleaningDetailPageState extends ConsumerState<CleaningDetailPage> {
                       ),
                       SizedBox(height: 18),
 
-                      // 체크리스트
-                      if (cleaning.checklist.isNotEmpty)
-                        _ChecklistSection(
-                          cleaning: cleaning,
-                          enabled: isMine && !cleaning.isCompleted,
-                        )
-                      else
-                        Container(
-                          padding: const EdgeInsets.all(20),
-                          decoration: BoxDecoration(
-                            color: context.brand.panel,
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: context.brand.line),
-                          ),
-                          child: Center(
-                            child: Text('체크리스트가 아직 설정되지 않았습니다.', style: TextStyle(color: context.brand.muted, fontSize: 13)),
-                          ),
-                        ),
+                      // 어메니티 세팅 (다음 손님 기준 자동 계산, 읽기전용)
+                      _AmenitySection(
+                        cleaning: cleaning,
+                        nextReservation: nextResAsync.valueOrNull,
+                      ),
                     ],
                   ),
                 ),
@@ -210,9 +198,6 @@ class _BranchHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final branchColor = AppColors.branchColor(cleaning.branchId);
-    final total = cleaning.checklist.length;
-    final done = cleaning.checkedCount;
-    final pct = total > 0 ? done / total : 0.0;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -267,24 +252,6 @@ class _BranchHeader extends StatelessWidget {
             ],
           ),
 
-          if (total > 0) ...[
-            SizedBox(height: 14),
-            // 진행률 바
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                value: pct,
-                minHeight: 6,
-                backgroundColor: Colors.white.withOpacity(0.6),
-                valueColor: AlwaysStoppedAnimation<Color>(branchColor),
-              ),
-            ),
-            SizedBox(height: 6),
-            Text(
-              '$done/$total 항목 완료',
-              style: TextStyle(fontSize: 11, color: context.brand.muted, fontWeight: FontWeight.w500),
-            ),
-          ],
         ],
       ),
     );
@@ -432,126 +399,151 @@ class _AssigneeStatus extends StatelessWidget {
   }
 }
 
-// ===== 체크리스트 =====
+// ===== 어메니티 세팅 (다음 손님 기준 자동 계산, 읽기전용) =====
 
-class _ChecklistSection extends ConsumerWidget {
+class _AmenitySection extends StatelessWidget {
   final CleaningModel cleaning;
-  final bool enabled;
-  const _ChecklistSection({required this.cleaning, required this.enabled});
+  final ReservationModel? nextReservation;
+  const _AmenitySection({required this.cleaning, required this.nextReservation});
+
+  bool _sameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final Map<String, List<MapEntry<int, ChecklistItem>>> grouped = {};
-    for (int i = 0; i < cleaning.checklist.length; i++) {
-      final item = cleaning.checklist[i];
-      grouped.putIfAbsent(item.category, () => []).add(MapEntry(i, item));
-    }
+  Widget build(BuildContext context) {
+    final r = nextReservation;
+    // 다음 손님 = 청소일(scheduledDate)에 같은 호점으로 체크인하는 예약
+    final hasNext = r != null &&
+        r.branchId == cleaning.branchId &&
+        _sameDay(r.checkIn, cleaning.scheduledDate);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: grouped.entries.map((entry) {
-        return Padding(
-          padding: const EdgeInsets.only(bottom: 14),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: context.brand.panel,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: context.brand.line),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Padding(
-                padding: const EdgeInsets.only(left: 2, bottom: 8),
-                child: Text(
-                  entry.key,
-                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12, color: context.brand.muted),
-                ),
-              ),
-              ...entry.value.map((e) => _ChecklistTile(
-                    item: e.value,
-                    index: e.key,
-                    cleaningId: cleaning.id,
-                    enabled: enabled,
-                  )),
+              Icon(Icons.local_laundry_service_outlined, size: 18, color: AppColors.branch1),
+              SizedBox(width: 8),
+              Text('어메니티 세팅', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w800)),
             ],
           ),
-        );
-      }).toList(),
-    );
-  }
-}
-
-class _ChecklistTile extends ConsumerWidget {
-  final ChecklistItem item;
-  final int index;
-  final String cleaningId;
-  final bool enabled;
-  const _ChecklistTile({required this.item, required this.index, required this.cleaningId, required this.enabled});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 6),
-      child: Material(
-        color: context.brand.panel,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          onTap: enabled ? () => _toggle(ref) : null,
-          borderRadius: BorderRadius.circular(10),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: context.brand.line),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 22,
-                  height: 22,
-                  decoration: BoxDecoration(
-                    color: item.checked ? AppColors.ok : Colors.transparent,
-                    borderRadius: BorderRadius.circular(6),
-                    border: Border.all(
-                      color: item.checked ? AppColors.ok : context.brand.line,
-                      width: 2,
-                    ),
-                  ),
-                  child: item.checked
-                      ? Icon(Icons.check, color: Colors.white, size: 14)
-                      : null,
-                ),
-                SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    item.text,
-                    style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w500,
-                      color: item.checked ? context.brand.muted : context.brand.text,
-                      decoration: item.checked ? TextDecoration.lineThrough : null,
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          SizedBox(height: 4),
+          Text(
+            '다음 손님 기준으로 자동 계산된 수량입니다.',
+            style: TextStyle(fontSize: 11, color: context.brand.muted),
           ),
-        ),
+          SizedBox(height: 12),
+          if (!hasNext)
+            _noNextNotice(context)
+          else
+            ..._buildContent(context, r),
+        ],
       ),
     );
   }
 
-  Future<void> _toggle(WidgetRef ref) async {
-    try {
-      final fs = ref.read(firestoreProvider);
-      final doc = await fs.collection('cleanings').doc(cleaningId).get();
-      if (!doc.exists) return;
-      final data = doc.data()!;
-      final list = (data['checklist'] as List<dynamic>)
-          .map((e) => Map<String, dynamic>.from(e as Map))
-          .toList();
-      list[index]['checked'] = !item.checked;
-      await fs.collection('cleanings').doc(cleaningId).update({'checklist': list});
-    } catch (_) {}
+  Widget _noNextNotice(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppColors.warn.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.info_outline, size: 16, color: AppColors.warn),
+              SizedBox(width: 6),
+              Text('다음 예약 없음 — 기본 세팅',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.warn)),
+            ],
+          ),
+          SizedBox(height: 6),
+          Text(
+            '청소일에 새로 체크인하는 예약이 없어 수량 계산을 생략합니다. 기본 세팅으로 진행해 주세요.',
+            style: TextStyle(fontSize: 12, color: context.brand.muted, height: 1.4),
+          ),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildContent(BuildContext context, ReservationModel r) {
+    final nights = _nightsBetween(r.checkIn, r.checkOut);
+    final groups = calcAmenityGroups(guests: r.guestCount, nights: nights);
+
+    return [
+      // 다음 손님 정보
+      Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: AppColors.warn.withOpacity(0.08),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.login, size: 16, color: AppColors.warn),
+            SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                '${r.guestName.isEmpty ? '다음 손님' : r.guestName} · 👤 ${r.guestCount}인 · ${nights}박',
+                style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: context.brand.text),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+      ),
+      SizedBox(height: 12),
+      ...groups.map((g) => _groupBlock(context, g)),
+    ];
+  }
+
+  Widget _groupBlock(BuildContext context, AmenityGroup g) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(g.title,
+              style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: context.brand.muted)),
+          SizedBox(height: 6),
+          ...g.items.map((item) => Padding(
+                padding: const EdgeInsets.symmetric(vertical: 5),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(item.name, style: TextStyle(fontSize: 13, color: context.brand.text)),
+                    Text(item.qty,
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: AppColors.branch1)),
+                  ],
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+
+  int _nightsBetween(DateTime checkIn, DateTime checkOut) {
+    final a = DateTime(checkIn.year, checkIn.month, checkIn.day);
+    final b = DateTime(checkOut.year, checkOut.month, checkOut.day);
+    final n = b.difference(a).inDays;
+    return n < 1 ? 1 : n;
   }
 }
 
-// ===== 하단 액션 (모든 체크 완료시에만 다음 버튼 활성화) =====
+// ===== 하단 액션 (당일 청소만 완료 가능) =====
 
 class _BottomAction extends StatelessWidget {
   final CleaningModel cleaning;
@@ -586,25 +578,26 @@ class _BottomAction extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final total = cleaning.checklist.length;
-    final done = cleaning.checkedCount;
-    final allDone = total > 0 && done == total;
+    final isToday = cleaning.isScheduledToday;
+    final canProceed = isToday;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        if (!allDone && total > 0)
+        if (!isToday)
           Padding(
             padding: const EdgeInsets.only(bottom: 6),
             child: Text(
-              '모든 항목 체크 시 다음 단계로',
-              style: TextStyle(color: context.brand.muted, fontSize: 11),
+              '완료 처리는 청소 당일에만 가능합니다 '
+              '(예정 ${DateFormat('M/d (E)', 'ko').format(cleaning.scheduledDate)})',
+              style: TextStyle(color: AppColors.warn, fontSize: 11, fontWeight: FontWeight.w600),
+              textAlign: TextAlign.center,
             ),
           ),
         SizedBox(
           width: double.infinity,
           child: FilledButton.icon(
-            onPressed: allDone
+            onPressed: canProceed
                 ? () => context.push('/cleaning/${cleaning.id}/complete')
                 : null,
             style: FilledButton.styleFrom(
@@ -612,9 +605,9 @@ class _BottomAction extends StatelessWidget {
               disabledBackgroundColor: const Color(0xFFCBD5E1),
               disabledForegroundColor: Colors.white,
             ),
-            icon: Icon(allDone ? Icons.arrow_forward : Icons.lock, size: 18),
+            icon: Icon(canProceed ? Icons.check : Icons.lock, size: 18),
             label: Text(
-              allDone ? '다음 (완료 보고)' : '다음 ($done/$total)',
+              isToday ? '확인완료' : '오늘 예정 청소만 완료 가능',
               style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
             ),
           ),

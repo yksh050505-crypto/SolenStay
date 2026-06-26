@@ -38,6 +38,7 @@ dependencies:
   package_info_plus: ^8.0.2
   url_launcher: ^6.3.0
   web: ^1.1.0
+  archive: ^3.6.1   # HWPX(.hwpx) = ZIP 패키지 생성용 (순수 Dart, 웹 호환)
 
 dev_dependencies:
   flutter_test:

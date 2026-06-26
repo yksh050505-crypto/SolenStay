@@ -11,7 +11,7 @@
 import { onCall, HttpsError } from 'firebase-functions/v2/https';
 import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import * as admin from 'firebase-admin';
-import { REGION } from './lib/constants';
+import { REGION, TIMEZONE } from './lib/constants';
 import {
   requireAuth,
   requireChiefOrManager,
@@ -231,6 +231,19 @@ export const completeCleaning = onCall({ region: REGION }, async (req) => {
   const cleaningData = cleaningSnap.data()!;
   const branchId = cleaningData.branchId as string;
   const scheduledDate = cleaningData.scheduledDate as admin.firestore.Timestamp;
+
+  // 당일만 완료 가능 — 예정일(KST)이 오늘(KST)과 다르면 거부.
+  // (Cloud Functions 프로세스 TZ는 UTC이므로 반드시 Asia/Seoul로 환산해 날짜 비교)
+  const todayKst = new Date().toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+  const scheduledKst = scheduledDate
+    .toDate()
+    .toLocaleDateString('en-CA', { timeZone: TIMEZONE });
+  if (scheduledKst !== todayKst) {
+    throw new HttpsError(
+      'failed-precondition',
+      `오늘 예정된 청소만 완료할 수 있습니다 (예정일 ${scheduledKst}, 오늘 ${todayKst})`,
+    );
+  }
 
   // checkIn == scheduledDate (같은 날) 인 다른 예약 = 다음 게스트
   const dayStart = new Date(scheduledDate.toDate());

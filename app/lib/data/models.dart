@@ -182,6 +182,15 @@ class CleaningModel {
   int get checkedCount => checklist.where((i) => i.checked).length;
   bool get allChecked => checklist.isNotEmpty && checklist.every((i) => i.checked);
 
+  /// 청소 예정일이 오늘(기기 로컬=KST)인지. 완료 처리는 당일에만 허용한다.
+  /// (서버 completeCleaning에서도 KST 기준으로 동일하게 검증한다.)
+  bool get isScheduledToday {
+    final now = DateTime.now();
+    return scheduledDate.year == now.year &&
+        scheduledDate.month == now.month &&
+        scheduledDate.day == now.day;
+  }
+
   factory CleaningModel.fromDoc(DocumentSnapshot<Map<String, dynamic>> doc) {
     final d = doc.data()!;
     final items = (d['checklist'] as List<dynamic>? ?? [])

@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,6 +16,7 @@ import '../../data/services.dart';
 import '../manager/manager_dashboard_page.dart' show allUsersProvider;
 import '../notifications/notifications_page.dart' show NotificationItem, sentNoticesProvider;
 import 'apk_picker_stub.dart' if (dart.library.js_interop) 'apk_picker_web.dart';
+import 'stay_log_export_section.dart';
 
 /// 공통 확인 다이얼로그 헬퍼.
 /// 되돌리기 어렵거나 직원 전체에 영향을 주는 작업 직전에 호출한다.
@@ -250,6 +252,14 @@ class AdminSettingsPage extends ConsumerWidget {
             SizedBox(height: 10),
             const _BranchSyncSection(),
             SizedBox(height: 24),
+
+            // 숙박일지 내보내기 (월·지점 → 한글 HWPX) — PC 크롬 전용(네이티브 다운로드 미지원)
+            if (kIsWeb) ...[
+              const _SectionHeader(title: '숙박일지'),
+              SizedBox(height: 10),
+              const StayLogExportSection(),
+              SizedBox(height: 24),
+            ],
 
             // 앱 버전 등록 (Android APK 업데이트 알림용)
             const _SectionHeader(title: '앱 버전 (Android)'),

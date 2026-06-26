@@ -70,6 +70,7 @@ class _CompletionPageState extends ConsumerState<CompletionPage> {
   }
 
   Widget _buildForm(CleaningModel cleaning, BranchModel branch, ReservationModel? reservation, UserModel? user) {
+    final isToday = cleaning.isScheduledToday;
     return Column(
       children: [
         Expanded(
@@ -144,15 +145,44 @@ class _CompletionPageState extends ConsumerState<CompletionPage> {
           ),
         ),
 
+        // 당일이 아닌 청소 안내 (완료 불가)
+        if (!isToday)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(18, 0, 18, 8),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+              decoration: BoxDecoration(
+                color: AppColors.warn.withOpacity(0.12),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Row(
+                children: [
+                  Icon(Icons.event_busy, color: AppColors.warn, size: 18),
+                  SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '이 청소는 ${DateFormat('M/d (E)', 'ko').format(cleaning.scheduledDate)} 예정입니다. '
+                      '완료 처리는 청소 당일에만 가능합니다.',
+                      style: TextStyle(color: AppColors.warn, fontSize: 12, fontWeight: FontWeight.w600),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+
         // 완료 처리하기 버튼 (초록색)
         Padding(
           padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
           child: SizedBox(
             width: double.infinity,
             child: FilledButton(
-              onPressed: _submitting ? null : () => _submit(cleaning),
+              onPressed: (_submitting || !isToday) ? null : () => _submit(cleaning),
               style: FilledButton.styleFrom(
                 backgroundColor: AppColors.ok,
+                disabledBackgroundColor: const Color(0xFFCBD5E1),
+                disabledForegroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 16),
               ),
               child: _submitting
@@ -164,7 +194,8 @@ class _CompletionPageState extends ConsumerState<CompletionPage> {
                         Text('제출 중...', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
                       ],
                     )
-                  : Text('완료 처리하기', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
+                  : Text(isToday ? '완료 처리하기' : '오늘 예정 청소만 완료 가능',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.w700)),
             ),
           ),
         ),
@@ -188,6 +219,18 @@ class _CompletionPageState extends ConsumerState<CompletionPage> {
   }
 
   Future<void> _submit(CleaningModel cleaning) async {
+    if (!cleaning.isScheduledToday) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            '오늘(${DateFormat('M/d', 'ko').format(DateTime.now())}) 예정된 청소만 완료할 수 있습니다. '
+            '이 청소 예정일: ${DateFormat('M/d', 'ko').format(cleaning.scheduledDate)}',
+          ),
+          backgroundColor: AppColors.warn,
+        ),
+      );
+      return;
+    }
     if (_photos.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -210,9 +253,15 @@ class _CompletionPageState extends ConsumerState<CompletionPage> {
         photoUrls.add(url);
       }
 
+      // 청소원 흐름에서 체크리스트 체크박스를 제거했으므로, 완료 제출 시
+      // 모든 항목을 checked=true로 만들어 보낸다 (서버 completeCleaning은
+      // 모든 항목 checked=true를 요구). 완료 기록의 checklist는 전부 체크됨.
+      final checkedChecklist =
+          cleaning.checklist.map((i) => i.copyWith(checked: true)).toList();
+
       await ref.read(functionsServiceProvider).completeCleaning(
             cleaningId: cleaning.id,
-            checklist: cleaning.checklist,
+            checklist: checkedChecklist,
             photoUrls: photoUrls,
             memo: _memoCtrl.text.trim(),
           );
@@ -363,9 +412,6 @@ class _CompletedView extends ConsumerWidget {
   final CleaningModel cleaning;
   final List<BranchModel> branches;
   const _CompletedView({required this.cleaning, required this.branches});
-
-  bool _sameDay(DateTime a, DateTime b) =>
-      a.year == b.year && a.month == b.month && a.day == b.day;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
